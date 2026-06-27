@@ -1,0 +1,22 @@
+# ContinuaCare — combined Python dependencies (backend + agent).
+# The frontend is a Node/npm project and is managed separately.
+
+# --- Voice agent (packages/agent) ---
+livekit-agents[silero]~=1.5
+livekit-plugins-deepgram
+livekit-plugins-anthropic
+livekit-plugins-elevenlabs
+
+# --- Backend API (packages/backend) ---
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]
+asyncpg
+alembic
+apscheduler
+anthropic
+
+# --- Shared ---
+pydantic
+python-dotenv
+httpx
