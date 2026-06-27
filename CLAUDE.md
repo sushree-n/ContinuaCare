@@ -4,59 +4,61 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-This repo is currently a **skeleton**. Only [CONTINUACARE_MASTER.md](CONTINUACARE_MASTER.md) has real content; all source files under `packages/` are empty `.gitkeep` placeholders, and `.env.example`, `render.yaml`, and `README.md` are empty. `CONTINUACARE_MASTER.md` is the canonical technical spec — treat it as the source of truth for file layout, models, endpoints, prompts, and the demo flow, and keep it in sync when implementing. File/symbol names referenced below come from that spec, not from existing code, so verify a file exists before assuming its contents.
+This repo is an **implemented hackathon build**, not a skeleton. All three packages under `packages/` have working code. Two reference docs sit at the root:
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) — diagrammed, code-grounded overview of the system as actually built (component map, state machine, sequence flow, agent pipeline, ERD, API surface). **Start here.**
+- [CONTINUACARE_MASTER.md](CONTINUACARE_MASTER.md) — the original technical spec. It still carries useful design intent, but parts have drifted from the code; where they disagree, **the code wins** and `ARCHITECTURE.md` reflects it. Empty/unwritten files: `render.yaml` and the root `README.md`.
 
 ContinuaCare is a hackathon (June 26–27, 2026) TCM (Transitions of Care Management) automation platform: it detects a hospital discharge, places automated voice follow-up calls to patients, escalates red-flag symptoms in real time, and generates CMS-compliant TCM billing documentation (CPT 99495/99496).
 
 ## Monorepo layout
 
-Three independently-deployed packages (see `render.yaml` spec in the master doc, §12):
+Three independently-deployed packages:
 
-- `packages/backend/` — FastAPI + async SQLAlchemy + PostgreSQL. The orchestration brain: REST API, episode state machine, scheduling (APScheduler), and all Claude calls for non-realtime analysis (triage, summaries, billing docs). Entry: `main.py` (`uvicorn main:app`).
-- `packages/agent/` — LiveKit voice agent worker (`agent.py`). Runs the live phone call: Deepgram STT (`nova-3-medical`) → Claude Sonnet (`claude-sonnet-4-6`) LLM → ElevenLabs TTS, dialed out over LiveKit SIP → Twilio. Talks back to the backend over HTTP (`BACKEND_URL`) to post escalations and call completions.
-- `packages/frontend/` — React + TypeScript + Vite, Zustand store, axios client (`src/api.ts`), react-big-calendar. Dashboard polls `/escalations/open` every 3s so red-flag alerts surface live.
+- `packages/backend/` — FastAPI + async SQLAlchemy + PostgreSQL. The orchestration brain: REST API, episode state machine, and the non-realtime LLM calls. Triage runs on **DeepSeek-V4-Pro via BaseTen** (`services/triage.py`); the post-call summary and billing doc run on **Claude Sonnet 4.5 via OpenRouter** (`services/summarizer.py`, `services/billing_doc.py`). All three use the OpenAI-compatible SDK (`AsyncOpenAI`), not the Anthropic SDK. Entry: `main.py` (`uvicorn main:app`); on startup it `create_all`s the tables. Routers: `patients`, `episodes`, `calls`, `escalations`, `billing`, `demo`.
+- `packages/agent/` — LiveKit voice agent worker (LiveKit Agents v1.5+, `AgentServer` / `@server.rtc_session(agent_name="continuacare")` in `agent.py`; `CareAgent` in `care_agent.py`; tools in `tools.py`; prompt builder in `prompts.py`). Runs the live phone call: Silero VAD + Deepgram STT (`nova-3-medical`) → **Claude Sonnet 4.5 via OpenRouter** (LiveKit `openai` plugin) → ElevenLabs TTS (`eleven_turbo_v2`). Talks back to the backend over HTTP (`BACKEND_URL`) to post escalations and call completions.
+- `packages/frontend/` — React + TypeScript + Vite, Zustand store (`src/store/useStore.ts`), axios client (`src/api.ts`). Dashboard polls `/escalations/open` every 3s so red-flag alerts surface live. **Defaults to mock/seed data** (`USE_MOCK`); set `VITE_USE_MOCK=false` and point `VITE_API_URL` at the backend for live mode.
 
 ## Architecture: the episode state machine
 
 Everything centers on `TCMEpisode.state` (`packages/backend/models.py`), which advances through:
 `DISCHARGE_DETECTED → AWAITING_CALL → CALL_IN_PROGRESS → CALL_COMPLETE → ESCALATED → VISIT_SCHEDULED → READY_TO_BILL → VOIDED`.
 
-The end-to-end flow (master doc §5 is the line-by-line reference):
+The end-to-end flow (see [ARCHITECTURE.md](ARCHITECTURE.md) §3 for the sequence diagram):
 
-1. `POST /patients` then `POST /episodes` (the discharge event). Episode creation synchronously runs `services/triage.py` (Claude discharge analysis → `structured_extract`, `complexity`), computes TCM deadlines, and `services/scheduler.py` enqueues `CallSchedule` rows. State → `AWAITING_CALL`.
-2. APScheduler fires → `POST /calls/trigger/{episode_id}` → creates a `Call`, launches `place_outbound_call()`, state → `CALL_IN_PROGRESS`.
-3. The agent runs the call. **Mid-call red flag → agent calls its `escalate()` tool → `POST /escalations` (severity `urgent`) → state `ESCALATED` → dashboard lights up red.** This escalation path is the most important behavior in the product. Normal completion → agent `end_call()` → `POST /calls/{id}/complete` → `services/summarizer.py` (Claude) → state `CALL_COMPLETE`.
-4. No-answer → `POST /calls/{id}/no-answer`; `services/call_manager.py` retries up to `MAX_ATTEMPTS = 3`, then escalates `monitor` (3 attempts is still CMS-billable).
-5. Visit scheduling (HIGH complexity = 7-day window/CPT 99496, MODERATE = 14-day/CPT 99495) → `VISIT_SCHEDULED` → `READY_TO_BILL`.
-6. `POST /episodes/{id}/generate-billing` → `services/billing_doc.py` (Claude) produces the CPT recommendation, the 4 CMS required elements, and a draft clinician note.
+1. `POST /patients`, then `POST /episodes` (the discharge event). `POST /episodes` returns immediately and a FastAPI **BackgroundTask** runs `services/triage.py` (DeepSeek discharge analysis → `structured_extract`, `complexity`, `cpt_code`), computes TCM deadlines inline (`_business_days_from`), and sets state → `AWAITING_CALL`. The same task then `asyncio.sleep`s `DEMO_CALL_DELAY_SECONDS` and POSTs `/calls/trigger/{episode_id}`.
+2. `POST /calls/trigger/{episode_id}` creates a `Call`, sets state → `CALL_IN_PROGRESS`, and (background) calls `place_outbound_call()`, which **dispatches the LiveKit agent** (`agent_dispatch.create_dispatch`). The **agent itself** then places the SIP call (`create_sip_participant`, `wait_until_answered=True`) over LiveKit → Twilio.
+3. The agent runs the call. **Mid-call red flag → agent calls its `escalate()` tool → `POST /escalations` (severity `urgent`) → state `ESCALATED` → dashboard lights up red**, then `transfer_to_human()` cold-transfers via SIP REFER. This escalation path is the most important behavior in the product. On any end path (agent `end_call()`, patient hangup, or error), the agent's `post_call_complete` shutdown hook POSTs `/calls/{id}/complete` with the transcript → `services/summarizer.py` (Claude via OpenRouter) → state `CALL_COMPLETE` (only if still `CALL_IN_PROGRESS`).
+4. No-answer → `POST /calls/{id}/no-answer`; `services/call_manager.py` escalates `monitor` after `MAX_ATTEMPTS = 3` (3 attempts is still CMS-billable). **Note:** the between-attempt retry scheduler (`_schedule_retry`) is currently a logging stub.
+5. Visit scheduling (HIGH complexity = 7-day window/CPT 99496, MODERATE = 14-day/CPT 99495). `VISIT_SCHEDULED`/`VOIDED` are reached only via the manual `PATCH /episodes/{id}/state` endpoint; the agent's `schedule_appointment` tool records the booking outcome but does not itself advance episode state.
+6. `POST /episodes/{id}/generate-billing` → `services/billing_doc.py` (Claude via OpenRouter) produces the CPT claim, the CMS required elements, and a draft clinician note; sets `ready_to_bill` and state → `READY_TO_BILL`.
 
-Key coupling to preserve: the three Claude prompts live in `packages/backend/prompts.py` (master doc §6) and return **raw JSON only** — triage/summary/billing parsing depends on that. The agent's system prompt is built separately in `packages/agent/prompts.py` via `build_agent_prompt()`, which injects diagnosis-specific warning signs from the `WARNING_SIGNS` map.
+Key coupling to preserve: the three backend prompts live in `packages/backend/prompts.py` and return **raw JSON only** — triage/summary/billing parsing depends on that (the services strip code fences and `json.loads`). The agent's system prompt is built separately in `packages/agent/prompts.py` via `build_agent_prompt()`, which injects diagnosis-specific warning signs from the `WARNING_SIGNS` map.
 
 ## Writing LiveKit code
 
-LiveKit Agents evolves fast and the spec's agent snippets (master doc §7) may be stale. **Before writing or editing any LiveKit-related code** (the `packages/agent/` worker, `AgentSession`/`Agent`, plugins, SIP/outbound dialing, dispatch), ground it against the live LiveKit MCP docs — see https://docs.livekit.io/mcp. Use the `claude.ai LiveKit` MCP tools (start with `docs_search`/`get_pages`, then `code_search` for SDK specifics) to confirm current APIs rather than relying on the spec or training memory.
+LiveKit Agents evolves fast and any agent snippets in the master doc (§7) are stale — the real worker is on the **v1.5+ `AgentServer` API**. **Before writing or editing any LiveKit-related code** (the `packages/agent/` worker, `AgentSession`/`Agent`, plugins, SIP/outbound dialing, dispatch), ground it against the live LiveKit MCP docs — see https://docs.livekit.io/mcp. Use the `claude.ai LiveKit` MCP tools (start with `docs_search`/`get_pages`, then `code_search` for SDK specifics) to confirm current APIs rather than relying on the spec or training memory.
 
 ## Complexity / billing rules (don't break these)
 
 - `ComplexityLevel.HIGH` → CPT `99496`, face-to-face within **7 days**. `MODERATE` → CPT `99495`, within **14 days**. When triage is uncertain, classify **HIGH** (patient safety).
-- Contact deadline = discharge + 2 **business days** (`add_business_days`, Mon–Fri). Billing date = discharge + 30 days (date of service).
-- Call cadence by complexity is fixed in `CALL_SCHEDULE` (high `[0,2,6,13,20,29]`, moderate `[1,6,13,29]` day-offsets from discharge).
+- Contact deadline = discharge + 2 **business days** (`_business_days_from` in `routers/episodes.py`, Mon–Fri). Visit deadline = discharge + `visit_window_days`. Billing date = discharge + 30 days (date of service).
+- The multi-call cadence by complexity (`CALL_SCHEDULE`, high `[0,2,6,13,20,29]`, moderate `[1,6,13,29]`) is **design intent in the spec but not yet implemented** — there is no `scheduler.py`, and `CallSchedule` rows are not created by the current flow (the live flow triggers one call after triage, plus manual re-trigger / `/demo/fast-forward`).
 
 ## Demo mode
 
-`DEMO_MODE=true` compresses timing for live demos: `DEMO_CALL_DELAY_SECONDS` (default 5) before the first call, 10s retry delay (vs 60min in prod). Demo-only endpoints: `POST /demo/fast-forward/{episode_id}` and `GET /demo/reset` (wipe all data between demos). Build these — the Saturday demo depends on them (master doc §14).
+`DEMO_MODE=true` unlocks the demo-only endpoints `POST /demo/fast-forward/{episode_id}` and `GET /demo/reset` (wipe all data between demos), and is required for them (they 403 otherwise). Timing is compressed for live demos: `DEMO_CALL_DELAY_SECONDS` (code default 15) before the first call, and a 10s no-answer retry delay vs 3600s in prod (`services/call_manager.py`).
 
 ## Commands
-
-These come from the spec (master doc §13); adjust as real files land.
 
 Backend (`packages/backend/`):
 ```bash
 python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+uvicorn main:app --reload --port 8000        # API at :8000, docs at :8000/docs
+# tables are auto-created on startup; alembic is configured if you prefer migrations:
 alembic upgrade head                 # apply DB migrations
 alembic revision --autogenerate -m "msg"   # create a migration after model changes
-uvicorn main:app --reload --port 8000        # API at :8000, docs at :8000/docs
 ```
 
 Agent (`packages/agent/`, separate venv):
@@ -77,8 +79,8 @@ Local Postgres:
 docker run --name continuacare-db -e POSTGRES_PASSWORD=pass -e POSTGRES_DB=continuacare -p 5432:5432 -d postgres
 ```
 
-No test suite or linter is defined in the spec yet; do not add test cases.
+No test suite or linter is defined; do not add test cases.
 
 ## Environment
 
-Copy `.env.example` → `.env` (never commit `.env`). Required keys (master doc §2): `DATABASE_URL` (async — `postgresql+asyncpg://...`), `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID`, `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`/`LIVEKIT_SIP_TRUNK_ID`, `TWILIO_*`, `DEEPGRAM_API_KEY`, `BASETEN_API_KEY`/`BASETEN_WHISPER_URL`, `VITE_API_URL` (frontend), `BACKEND_URL` (agent). Patient phone numbers must be E.164 (`+1XXXXXXXXXX`).
+Copy `.env.example` → `.env` (never commit `.env`). The keys the code actually reads: `DATABASE_URL` (async — `postgresql+asyncpg://...`), `BASETEN_API_KEY` (triage / DeepSeek-V4-Pro), `OPENROUTER_API_KEY` + optional `OPENROUTER_BASE_URL` (summary, billing, and the agent LLM — Claude Sonnet 4.5), `DEEPGRAM_API_KEY`, `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID`, `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`/`LIVEKIT_SIP_TRUNK_ID` (outbound SIP trunk, `ST_…`), `CARE_TEAM_PHONE_NUMBER` (transfer target), `BACKEND_URL` (agent + demo), `VITE_API_URL`/`VITE_USE_MOCK` (frontend), `DEMO_MODE`/`DEMO_CALL_DELAY_SECONDS`. `TWILIO_*` configure the SIP trunk (telephony) but are not read directly by the Python. Note: `.env.example` still lists `ANTHROPIC_API_KEY` — the code does **not** use the Anthropic SDK (LLM traffic goes through BaseTen and OpenRouter). Patient phone numbers must be E.164 (`+1XXXXXXXXXX`).
