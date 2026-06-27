@@ -73,8 +73,8 @@ async def escalate(ctx: RunContext, reason: str, severity: str = "urgent") -> st
         reason: Short factual summary, e.g. "Chest tightness since yesterday".
         severity: "urgent" for emergencies, "monitor" for lower-acuity concerns.
     """
-    episode_id = ctx.userdata.get("episode_id")
-    call_id = ctx.userdata.get("call_id")
+    episode_id = ctx.session.userdata.get("episode_id")
+    call_id = ctx.session.userdata.get("call_id")
     logger.info("escalate (%s): %s — episode=%s call=%s", severity, reason, episode_id, call_id)
 
     try:
@@ -100,8 +100,8 @@ async def schedule_appointment(ctx: RunContext, agreed: bool, slot: str = "", re
         slot: The agreed time, e.g. "Tuesday at 10 a.m." (when agreed=True).
         reason: Why the patient declined or wants to wait (when agreed=False).
     """
-    episode_id = ctx.userdata.get("episode_id")
-    call_id = ctx.userdata.get("call_id")
+    episode_id = ctx.session.userdata.get("episode_id")
+    call_id = ctx.session.userdata.get("call_id")
     logger.info("schedule_appointment agreed=%s slot=%s episode=%s", agreed, slot, episode_id)
 
     try:
@@ -126,7 +126,7 @@ async def schedule_appointment(ctx: RunContext, agreed: bool, slot: str = "", re
 @function_tool()
 async def end_call(ctx: RunContext) -> str:
     """End the call once the conversation is complete."""
-    call_id = ctx.userdata.get("call_id")
+    call_id = ctx.session.userdata.get("call_id")
     logger.info("end_call — call=%s", call_id)
 
     try:
@@ -144,5 +144,8 @@ async def end_call(ctx: RunContext) -> str:
     except Exception as e:
         logger.error("Failed to POST call complete to backend: %s", e)
 
-    await ctx.session.aclose()
+    try:
+        await ctx.session.aclose()
+    except Exception:
+        pass
     return "Call ended."

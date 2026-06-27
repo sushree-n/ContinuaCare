@@ -47,7 +47,9 @@ logger = logging.getLogger("continuacare.agent")
 logger.setLevel(logging.INFO)
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
-DEFAULT_PATIENT_ID = "demo-patient-001"
+DEFAULT_PATIENT_ID = "232d80d2-9ce2-45ee-b2a9-ae843019f38e"
+DEFAULT_EPISODE_ID = "90c838cd-bdc9-4ce7-bddb-e5d8230524e0"
+DEFAULT_CALL_ID = "9521eb60-b1f6-437a-a4d0-9712476818a0"
 
 # Turn handling — let the STT (Deepgram) drive end-of-turn via its own
 # end-of-speech signal instead of bare VAD silence, use the adaptive barge-in
@@ -137,19 +139,28 @@ async def entrypoint(ctx: JobContext):
     # Pull call context from room metadata (set by backend when dispatching).
     # Falls back to demo defaults so the agent still works from the playground.
     import json as _json
+    logger.info("room metadata raw: %r", ctx.room.metadata)
+    logger.info("job metadata raw: %r", ctx.job.metadata)
+    logger.info("job room metadata raw: %r", ctx.job.room.metadata if ctx.job.room else None)
+    # try job metadata first, then job.room.metadata, then room.metadata
+    raw = ctx.job.metadata or (ctx.job.room.metadata if ctx.job.room else None) or ctx.room.metadata or "{}"
     try:
-        meta = _json.loads(ctx.room.metadata or "{}")
+        meta = _json.loads(raw)
     except Exception:
         meta = {}
+    logger.info("parsed meta: %s", meta)
 
-    ctx.userdata["episode_id"] = meta.get("episode_id", "demo-episode")
-    ctx.userdata["call_id"] = meta.get("call_id", "demo-call")
-    ctx.userdata["patient_id"] = meta.get("patient_id", DEFAULT_PATIENT_ID)
+    call_context = {
+        "episode_id": meta.get("episode_id", DEFAULT_EPISODE_ID),
+        "call_id": meta.get("call_id", DEFAULT_CALL_ID),
+        "patient_id": meta.get("patient_id", DEFAULT_PATIENT_ID),
+    }
 
-    patient = await fetch_patient(ctx.userdata["patient_id"])
+    patient = await fetch_patient(call_context["patient_id"])
 
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
+        userdata=call_context,
         stt=deepgram.STT(model="nova-3-medical"),
         llm=openai.LLM(
             model="anthropic/claude-sonnet-4-5",
@@ -165,8 +176,8 @@ async def entrypoint(ctx: JobContext):
     )
 
     try:
-        await session.start(agent=CareAgent(patient), room=ctx.room)
         await ctx.connect()
+        await session.start(agent=CareAgent(patient), room=ctx.room)
     except Exception:
         # Fail safe: if anything goes wrong mid-call, get a human on the line
         # rather than leaving the patient with a broken agent.
