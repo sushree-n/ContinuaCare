@@ -31,6 +31,7 @@ from livekit.agents import (
     function_tool,
 )
 from livekit.plugins import deepgram, elevenlabs, openai, silero
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from prompts import build_agent_prompt, build_greeting
 from tools import end_call, perform_transfer_to_human, transfer_to_human, escalate, schedule_appointment
@@ -133,6 +134,10 @@ async def entrypoint(ctx: JobContext):
             voice_id=os.getenv("ELEVENLABS_VOICE_ID"),
             model="eleven_turbo_v2",
         ),
+        # Semantic end-of-turn detection: wait until the patient has actually
+        # finished their thought instead of replying on the first silence. VAD
+        # above still drives interruption handling. See CLAUDE.md / LiveKit docs.
+        turn_detection=MultilingualModel(),
     )
 
     try:

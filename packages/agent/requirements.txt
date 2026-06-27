@@ -6,6 +6,7 @@ livekit-agents[silero]~=1.5
 livekit-plugins-deepgram
 livekit-plugins-anthropic
 livekit-plugins-elevenlabs
+livekit-plugins-turn-detector
 
 # --- Backend API (packages/backend) ---
 fastapi
