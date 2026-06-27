@@ -8,10 +8,12 @@ itself; this module holds standalone, shared tools.
 import logging
 import os
 
+import httpx
 from livekit import api, rtc
 from livekit.agents import RunContext, function_tool, get_job_context
 
 logger = logging.getLogger("continuacare.agent")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 # Spoken to the patient whenever a transfer can't be completed. Fixed wording —
 # every error path plays this exact line rather than letting the LLM improvise.
@@ -129,8 +131,21 @@ async def escalate(ctx: RunContext, reason: str, severity: str = "urgent") -> st
         reason: Short factual summary, e.g. "Chest tightness since yesterday".
         severity: "urgent" for emergencies, "monitor" for lower-acuity concerns.
     """
-    # MOCK — later POSTs to {BACKEND_URL}/escalations.
-    logger.info("MOCK escalate (%s): %s", severity, reason)
+    episode_id = ctx.session.userdata.get("episode_id")
+    call_id = ctx.session.userdata.get("call_id")
+    logger.info("escalate (%s): %s — episode=%s call=%s", severity, reason, episode_id, call_id)
+
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(f"{BACKEND_URL}/escalations", json={
+                "episode_id": episode_id,
+                "call_id": call_id,
+                "reason": reason,
+                "severity": severity,
+            })
+    except Exception as e:
+        logger.error("Failed to POST escalation to backend: %s", e)
+
     return "Escalation recorded for the care team."
 
 
@@ -143,18 +158,52 @@ async def schedule_appointment(ctx: RunContext, agreed: bool, slot: str = "", re
         slot: The agreed time, e.g. "Tuesday at 10 a.m." (when agreed=True).
         reason: Why the patient declined or wants to wait (when agreed=False).
     """
-    # MOCK — later POSTs the scheduling decision back to the backend.
+    episode_id = ctx.session.userdata.get("episode_id")
+    call_id = ctx.session.userdata.get("call_id")
+    logger.info("schedule_appointment agreed=%s slot=%s episode=%s", agreed, slot, episode_id)
+
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(f"{BACKEND_URL}/calls/{call_id}/complete", json={
+                "transcript": "",
+                "flags": [],
+                "structured_data": {
+                    "visit_scheduled": agreed,
+                    "visit_slot": slot if agreed else None,
+                    "decline_reason": reason if not agreed else None,
+                },
+            })
+    except Exception as e:
+        logger.error("Failed to POST schedule_appointment to backend: %s", e)
+
     if agreed:
-        logger.info("MOCK schedule_appointment agreed: %s", slot)
         return f"Follow-up visit booked for {slot}."
-    logger.info("MOCK schedule_appointment declined: %s", reason)
     return "Logged that the patient is not scheduling a visit right now."
 
 
 @function_tool()
 async def end_call(ctx: RunContext) -> str:
     """End the call once the conversation is complete."""
-    # MOCK — later posts the transcript/summary to {BACKEND_URL}/calls/{id}/complete.
-    logger.info("MOCK end_call — closing session")
-    await ctx.session.aclose()
+    call_id = ctx.session.userdata.get("call_id")
+    logger.info("end_call — call=%s", call_id)
+
+    try:
+        transcript = "\n".join(
+            f"{t.role}: {t.content}"
+            for t in ctx.session.history.items
+            if hasattr(t, "content") and t.content
+        )
+        async with httpx.AsyncClient() as client:
+            await client.post(f"{BACKEND_URL}/calls/{call_id}/complete", json={
+                "transcript": transcript,
+                "flags": [],
+                "structured_data": {},
+            })
+    except Exception as e:
+        logger.error("Failed to POST call complete to backend: %s", e)
+
+    try:
+        await ctx.session.aclose()
+    except Exception:
+        pass
     return "Call ended."
