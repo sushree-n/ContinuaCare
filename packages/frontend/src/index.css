@@ -1,0 +1,106 @@
+/* ContinuaCare — global styles, brand tokens, fonts (Hanken Grotesk + Archivo loaded in index.html) */
+
+:root {
+  --cc-navy: #032640;
+  --cc-green: #0e9a49;
+  --cc-green-bright: #2fb76c;
+  --cc-green-soft: #7fd3a5;
+  --cc-red: #e5331f;
+  --cc-amber: #e0a211;
+  --cc-bg: #f6f6f8;
+  --cc-ink: #032640;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #ffffff;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  color: var(--cc-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Display typeface used for headings, KPI numbers, the wordmark */
+.disp {
+  font-family: 'Archivo', 'Hanken Grotesk', sans-serif;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* ----- keyframes (from both designs) ----- */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+@keyframes slidein {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.96) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ----- landing: scroll-snap sections (scoped to the landing wrapper) ----- */
+.cc-landing {
+  height: 100vh;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+.cc-landing section {
+  scroll-snap-align: start;
+}
+
+/* ----- landing vertical pill nav ----- */
+.navdot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 6px;
+  height: 26px;
+}
+.navlabel {
+  position: absolute;
+  left: 20px;
+  white-space: nowrap;
+  background: #032640;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 7px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-4px);
+  transition: opacity 0.15s, transform 0.15s;
+}
+.navdot:hover .navlabel {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ----- custom scrollbars used across the console ----- */
+.cc-scroll::-webkit-scrollbar { width: 8px; height: 5px; }
+.cc-scroll::-webkit-scrollbar-thumb {
+  background: rgba(26, 26, 30, 0.14);
+  border-radius: 8px;
+}
