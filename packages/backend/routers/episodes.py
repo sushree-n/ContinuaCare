@@ -14,7 +14,7 @@ from database import get_db
 from models import TCMEpisode, Patient, Call, CallSchedule, EpisodeState, ComplexityLevel
 from services.triage import run_triage
 
-BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 CALL_DELAY_SECONDS = int(os.environ.get("DEMO_CALL_DELAY_SECONDS", 15))
 
 router = APIRouter(prefix="/episodes", tags=["episodes"])

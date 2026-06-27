@@ -397,6 +397,9 @@
     <button class="simbtn" id="simbtn" title="Simulate an incoming ADT discharge event">
       <i class="ti ti-broadcast"></i> Simulate discharge <span class="demotag">demo</span>
     </button>
+    <button class="simbtn" id="livebtn" title="Create a real patient and dispatch the live voice agent">
+      <i class="ti ti-phone-outgoing"></i> Live discharge <span class="demotag">live</span>
+    </button>
     <div class="who">
       <span>Tue, Jun 26 · 9:14 AM</span>
       <span class="av">DM</span>
@@ -1162,6 +1165,164 @@ renderStats();
 syncSeg();
 renderRows();
 renderDetail();
+
+// ---------------------------------------------------------------------------
+// Live backend integration
+// ---------------------------------------------------------------------------
+
+const API_URL = window.API_URL || 'http://localhost:8000';
+
+// Demo patient — edit phone to match the real device before the demo
+const DEMO_PATIENT_CONFIG = {
+  name:        'Jane Smith',
+  age:         67,
+  phone:       '+12125550100',  // ← replace with real phone number before demo
+  diagnosis:   'Heart Failure',
+  medications: ['Furosemide 40mg', 'Lisinopril 10mg', 'Metoprolol 25mg'],
+};
+
+const DEMO_DISCHARGE_NOTES = `Patient is a 67-year-old female admitted for acute decompensated heart failure with volume overload. Treated with IV diuresis and transitioned to oral furosemide. Discharged home in stable condition. Lives with spouse. Daily weights advised. Sodium-restricted diet counseled. Cardiology follow-up requested within one week. High-risk for readmission given prior CHF admissions.`;
+
+// Maps episode_id -> local patient object so escalations can find their card
+const LIVE_EPISODES = {};
+const SEEN_ESCALATIONS = new Set();
+const DEMO_CALL_DELAY_SECONDS = 15;
+
+async function liveDischarge() {
+  const lb = document.getElementById('livebtn');
+  lb.disabled = true;
+  lb.innerHTML = '<i class="ti ti-loader-2"></i> Creating…';
+
+  try {
+    // 1. Create patient
+    const ptResp = await fetch(`${API_URL}/patients`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(DEMO_PATIENT_CONFIG),
+    });
+    if (!ptResp.ok) throw new Error(`Patient create failed: ${ptResp.status}`);
+    const pt = await ptResp.json();
+
+    // 2. Create episode (discharge event — triggers Claude triage + auto-call)
+    const epResp = await fetch(`${API_URL}/episodes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patient_id:      pt.id,
+        discharge_date:  new Date().toISOString(),
+        discharge_notes: DEMO_DISCHARGE_NOTES,
+      }),
+    });
+    if (!epResp.ok) throw new Error(`Episode create failed: ${epResp.status}`);
+    const ep = await epResp.json();
+
+    // 3. Inject a live patient card into the UI
+    const localId = 'live_' + ep.id.slice(0, 8);
+    const p = {
+      id: localId, _episodeId: ep.id, _patientId: pt.id,
+      name: pt.name, age: pt.age, sex: 'F', mrn: pt.id.slice(0, 6).toUpperCase(),
+      dx: pt.diagnosis, facility: 'Demo Hospital',
+      discharge: new Date().toISOString().slice(0, 10),
+      complexity: 'high', code: '99496', visitWin: 7, fee: 298,
+      stage: 'contact', kind: 'due', deadlineHrs: 48, deadlineLabel: 'contact due',
+      escalation: null, call: null, _dialing: false, _new: true,
+      meds: (pt.medications || []).map(m => ({ n: m, f: 'Daily', c: '' })),
+      dischargeNotes: DEMO_DISCHARGE_NOTES,
+      summary: '', transcript: '',
+      attempts: 0, appt: null, flagNoAnswer: false, flagConcern: false, verified: false,
+      timeline: [
+        { s: 'done', t: 'Discharge detected',       d: 'Live API event',                              w: new Date().toLocaleTimeString() },
+        { s: 'now',  t: 'Interactive contact',       d: 'Voice agent dispatched — phone call incoming', w: 'Deadline in 2 business days', dl: '48h remaining' },
+        { s: 'next', t: 'Medication reconciliation', d: 'On or before visit date',                     w: '' },
+        { s: 'next', t: 'Face-to-face visit',        d: 'High complexity · within 7 days',             w: '' },
+        { s: 'next', t: 'Day-30 billing',            d: 'Date of service Day+30',                      w: '' },
+      ],
+      claim: [
+        { k: 'Discharge date',            ok: true,  d: new Date().toLocaleDateString() },
+        { k: 'Interactive contact date',  ok: false, d: 'pending' },
+        { k: 'Face-to-face visit date',   ok: false, d: 'pending' },
+        { k: 'Medical decision-making',   ok: false, d: 'pending' },
+      ],
+    };
+    enrich(p);
+    LIVE_EPISODES[ep.id] = p;
+    PATIENTS.unshift(p);
+    selId = localId; filter = 'all'; syncSeg();
+    renderStats(); renderRows(); renderDetail();
+    toast('Live discharge created', `${pt.name} · ${pt.diagnosis} — agent call dispatched in ~${DEMO_CALL_DELAY_SECONDS}s.`);
+    setTimeout(() => { delete p._new; renderRows(); }, 2800);
+
+    // Show dialing indicator after a short pause
+    setTimeout(() => {
+      p._dialing = true; p.attempts = 1;
+      renderRows(); if (selId === localId) renderDetail();
+    }, 2000);
+
+  } catch (err) {
+    toast('Live discharge failed', err.message, 'alert');
+  } finally {
+    lb.disabled = false;
+    lb.innerHTML = '<i class="ti ti-phone-outgoing"></i> Live discharge <span class="demotag">live</span>';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Escalation polling — GET /escalations/open every 3 s
+// ---------------------------------------------------------------------------
+
+async function pollEscalations() {
+  try {
+    const resp = await fetch(`${API_URL}/escalations/open`);
+    if (!resp.ok) return;
+    const escalations = await resp.json();
+    for (const esc of escalations) {
+      if (SEEN_ESCALATIONS.has(esc.id)) continue;
+      SEEN_ESCALATIONS.add(esc.id);
+      handleLiveEscalation(esc);
+    }
+  } catch (_) { /* backend unreachable — silently skip */ }
+}
+
+function handleLiveEscalation(esc) {
+  // Find the patient card for this episode, or create a placeholder
+  let p = LIVE_EPISODES[esc.episode_id];
+  if (!p) {
+    const localId = 'esc_' + esc.id.slice(0, 8);
+    p = {
+      id: localId, _episodeId: esc.episode_id, _patientId: null,
+      name: 'Live Patient', age: null, sex: '', mrn: '',
+      dx: 'See escalation', facility: '', discharge: new Date().toISOString().slice(0, 10),
+      complexity: 'high', code: '99496', visitWin: 7, fee: 298,
+      stage: 'contact', kind: 'due', deadlineHrs: 48, deadlineLabel: 'clinical review',
+      escalation: null, call: null, meds: [], dischargeNotes: '',
+      summary: '', transcript: '', attempts: 1,
+      appt: null, flagNoAnswer: false, flagConcern: false, verified: false,
+      timeline: [], claim: [],
+    };
+    enrich(p);
+    LIVE_EPISODES[esc.episode_id] = p;
+    PATIENTS.unshift(p);
+  }
+
+  p.escalation = {
+    t: esc.reason,
+    d: `${esc.severity === 'urgent' ? 'URGENT — ' : ''}Escalation recorded at ${new Date(esc.created_at).toLocaleTimeString()}. Route to clinical team immediately.`,
+  };
+  p.flagConcern = true;
+  p.kind = 'due';
+  p._dialing = false;
+
+  selId = p.id; filter = 'all'; syncSeg();
+  renderStats(); renderRows(); renderDetail();
+  toast(
+    esc.severity === 'urgent' ? 'URGENT escalation' : 'Escalation raised',
+    `${p.name}: ${esc.reason}`,
+    'alert'
+  );
+}
+
+setInterval(pollEscalations, 3000);
+document.getElementById('livebtn').onclick = liveDischarge;
 </script>
 </body>
 </html>
