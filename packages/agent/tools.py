@@ -57,3 +57,45 @@ async def transfer_to_human(ctx: RunContext, reason: str) -> str:
             "Fever 101.5 F post-pneumonia-discharge".
     """
     return await perform_transfer_to_human(reason)
+
+
+@function_tool()
+async def escalate(self, ctx: RunContext, reason: str,
+                       severity: str = "urgent") -> str:
+        """Record a clinical red flag for the care team.
+
+        Call this IMMEDIATELY when the patient reports a warning sign, before
+        transferring. Do not wait until the end of the call.
+
+        Args:
+            reason: Short factual summary, e.g. "Chest tightness since yesterday".
+            severity: "urgent" for emergencies, "monitor" for lower-acuity concerns.
+        """
+        # MOCK — later POSTs to {BACKEND_URL}/escalations.
+        logger.info("MOCK escalate (%s): %s", severity, reason)
+        return "Escalation recorded for the care team."
+
+@function_tool()
+async def schedule_appointment(self, ctx: RunContext, agreed: bool,
+                                   slot: str = "", reason: str = "") -> str:
+        """Log the outcome of offering a follow-up visit.
+
+        Args:
+            agreed: True if the patient accepted a time slot.
+            slot: The agreed time, e.g. "Tuesday at 10 a.m." (when agreed=True).
+            reason: Why the patient declined or wants to wait (when agreed=False).
+        """
+        # MOCK — later POSTs the scheduling decision back to the backend.
+        if agreed:
+            logger.info("MOCK schedule_appointment agreed: %s", slot)
+            return f"Follow-up visit booked for {slot}."
+        logger.info("MOCK schedule_appointment declined: %s", reason)
+        return "Logged that the patient is not scheduling a visit right now."
+
+@function_tool()
+async def end_call(self, ctx: RunContext) -> str:
+        """End the call once the conversation is complete."""
+        # MOCK — later posts the transcript/summary to {BACKEND_URL}/calls/{id}/complete.
+        logger.info("MOCK end_call — closing session")
+        await self.session.aclose()
+        return "Call ended."

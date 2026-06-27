@@ -33,7 +33,7 @@ from livekit.agents import (
 from livekit.plugins import anthropic, deepgram, elevenlabs, silero
 
 from prompts import build_agent_prompt, build_greeting
-from tools import perform_transfer_to_human, transfer_to_human
+from tools import end_call, perform_transfer_to_human, transfer_to_human, escalate, schedule_appointment
 
 # Load .env.local from the repo root by absolute path so the agent works no
 # matter which directory it's launched from (this file lives at
@@ -99,7 +99,7 @@ class CareAgent(Agent):
     def __init__(self, patient: dict):
         super().__init__(
             instructions=build_agent_prompt(patient),
-            tools=[transfer_to_human],
+            tools=[transfer_to_human, escalate, schedule_appointment, end_call],
         )
         self.patient = patient
 
@@ -108,46 +108,6 @@ class CareAgent(Agent):
         # in the system prompt (instructions).
         await self.session.generate_reply(instructions=build_greeting(self.patient))
 
-    @function_tool()
-    async def escalate(self, ctx: RunContext, reason: str,
-                       severity: str = "urgent") -> str:
-        """Record a clinical red flag for the care team.
-
-        Call this IMMEDIATELY when the patient reports a warning sign, before
-        transferring. Do not wait until the end of the call.
-
-        Args:
-            reason: Short factual summary, e.g. "Chest tightness since yesterday".
-            severity: "urgent" for emergencies, "monitor" for lower-acuity concerns.
-        """
-        # MOCK — later POSTs to {BACKEND_URL}/escalations.
-        logger.info("MOCK escalate (%s): %s", severity, reason)
-        return "Escalation recorded for the care team."
-
-    @function_tool()
-    async def schedule_appointment(self, ctx: RunContext, agreed: bool,
-                                   slot: str = "", reason: str = "") -> str:
-        """Log the outcome of offering a follow-up visit.
-
-        Args:
-            agreed: True if the patient accepted a time slot.
-            slot: The agreed time, e.g. "Tuesday at 10 a.m." (when agreed=True).
-            reason: Why the patient declined or wants to wait (when agreed=False).
-        """
-        # MOCK — later POSTs the scheduling decision back to the backend.
-        if agreed:
-            logger.info("MOCK schedule_appointment agreed: %s", slot)
-            return f"Follow-up visit booked for {slot}."
-        logger.info("MOCK schedule_appointment declined: %s", reason)
-        return "Logged that the patient is not scheduling a visit right now."
-
-    @function_tool()
-    async def end_call(self, ctx: RunContext) -> str:
-        """End the call once the conversation is complete."""
-        # MOCK — later posts the transcript/summary to {BACKEND_URL}/calls/{id}/complete.
-        logger.info("MOCK end_call — closing session")
-        await self.session.aclose()
-        return "Call ended."
 
 
 # ---------------------------------------------------------------------------
