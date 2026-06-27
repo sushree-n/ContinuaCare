@@ -99,20 +99,16 @@ export default function Landing() {
             <span style={css('width:2.5px;height:13px;border-radius:2px;background:#fff')} />
             <span style={css('width:2.5px;height:10px;border-radius:2px;background:#2FB76C')} />
           </div>
-          <span className="disp" style={css('font-size:20px;font-weight:700')}>ContinuaCare</span>
+          <span className="disp" style={css('font-size:20px;font-weight:700')}>Continua</span>
         </DemoLink>
 
         <div style={css('width:100%;max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1.05fr 0.95fr;gap:48px;align-items:center')}>
           <div>
-            <div style={css('display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(45,140,107,0.3);background:#E8F5EC;color:#0E9A49;font-weight:600;font-size:13px;padding:7px 14px;border-radius:100px;margin-bottom:28px')}>
-              <span style={css('width:7px;height:7px;border-radius:50%;background:#0E9A49;animation:blink 1.6s infinite')} />
-              Voice AI for Transitional Care Management
-            </div>
-            <h1 className="disp" style={css('font-size:62px;font-weight:700;margin-bottom:24px;letter-spacing:-0.03em')}>
+            <h1 className="disp" style={css('font-size:48px;font-weight:700;margin-bottom:24px;letter-spacing:-0.03em')}>
               Better recovery.<br />Fewer readmissions.<br />More revenue.
             </h1>
             <p style={css('font-size:19px;line-height:1.55;color:#54515B;max-width:490px;margin-bottom:34px')}>
-              ContinuaCare is the <b style={{ color: '#032640' }}>voice AI care coordinator</b> for primary care practices. After every hospital discharge it calls the patient, catches problems before they become readmissions, books the follow-up visit, and captures the Medicare revenue that pays for it, automatically.
+              Continua is the <b style={{ color: '#032640' }}>agentic AI care coordinator</b> that automates Transitional Care Management for primary care practices. After every hospital discharge, it calls the patient, screens for red flags, books the follow-up visit, and captures Medicare billing.
             </p>
             <div style={css('display:flex;align-items:center;gap:18px')}>
               <DemoLink
@@ -207,9 +203,9 @@ export default function Landing() {
       <section id="problem" style={css('min-height:100vh;width:100%;background:#FFFFFF;display:flex;flex-direction:column;justify-content:center;padding:64px max(96px, calc(50vw - 590px))')}>
         <div style={css('width:100%;max-width:1180px;margin:0 auto')}>
           <div style={{ maxWidth: '820px' }}>
-            <div style={css('font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0E9A49;margin-bottom:18px')}>The problem</div>
-            <h2 className="disp" style={css('font-size:46px;font-weight:700;line-height:1.05;margin-bottom:20px;letter-spacing:-0.02em')}>The follow-up that keeps patients safe is no one's job.</h2>
-            <p style={css('font-size:18px;line-height:1.6;color:#54515B')}>The weeks after a discharge carry the highest risk of readmission, so timely follow-up matters most. But it's all manual, and most small practices have <b style={{ color: '#032640' }}>no one dedicated to it</b>. So it slips: patients go unseen, and the Medicare program that funds this care (Transitional Care Management) goes uncollected.</p>
+            <div style={css('font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0E9A49;margin-bottom:18px')}>Understanding Transitional Care Management (TCM)</div>
+            <h2 className="disp" style={css('font-size:38px;font-weight:700;line-height:1.12;margin-bottom:20px;letter-spacing:-0.02em')}>TCM is a Medicare program that pays primary care physicians $200–$275 per patient to coordinate care in the 30 days following a hospital discharge.</h2>
+            <p style={css('font-size:18px;line-height:1.6;color:#54515B')}>The weeks after discharge carry the highest risk of readmission — yet <b style={{ color: '#032640' }}>1 in 5 Medicare patients</b> is readmitted within 30 days, and only half ever get a follow-up visit with their doctor. The process is entirely manual, and most small practices have no one dedicated to it.</p>
           </div>
 
           <div style={css('margin-top:28px;border:1px solid rgba(26,26,30,0.1);border-radius:18px;padding:26px 36px')}>
@@ -231,27 +227,15 @@ export default function Landing() {
             </div>
           </div>
 
-          <div style={css('margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px')}>
-            <div style={css('border:1px solid rgba(26,26,30,0.1);border-radius:18px;padding:28px 32px')}>
-              <div className="disp" style={css('font-size:25px;font-weight:600;line-height:1.12;margin-bottom:12px')}>No one owns the follow-up.</div>
-              <p style={css('font-size:15px;line-height:1.55;color:#54515B')}>Most small practices have no dedicated care coordinator and can't afford to hire one. So discharge follow-up is done by hand, squeezed between phones, rooming, and everything else.</p>
-            </div>
-            <div style={css('background:#032640;border-radius:18px;padding:28px 32px;color:#fff')}>
-              <div className="disp" style={css('font-size:25px;font-weight:600;line-height:1.12;margin-bottom:12px;color:#7FD3A5')}>Patients go unseen. Revenue is forfeited.</div>
-              <p style={css('font-size:15px;line-height:1.55;color:#C2BFC9')}>When the team is at capacity, follow-up is the first thing to drop. Patients miss the check-in that prevents readmissions, and the practice forfeits the Medicare payment it earned.</p>
-            </div>
-          </div>
         </div>
       </section>
 
       {/* ===== SECTION 3 · STAKES ===== */}
-      <section id="numbers" style={css('min-height:100vh;width:100%;background:#F6F6F8;display:flex;flex-direction:column;justify-content:center;padding:80px max(96px, calc(50vw - 590px))')}>
-        <div style={css('width:100%;max-width:1180px;margin:0 auto')}>
-          <div style={css('display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:18px;margin-bottom:36px')}>
-            <div style={{ maxWidth: '640px' }}>
-              <div style={css('font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0E9A49;margin-bottom:18px')}>The size of the gap</div>
-              <h2 className="disp" style={css('font-size:46px;font-weight:700;line-height:1.05;letter-spacing:-0.02em')}>Over two billion dollars,<br />left on the table.</h2>
-            </div>
+      <section id="numbers" style={css('min-height:100vh;width:100%;background:#F6F6F8;display:flex;flex-direction:column;justify-content:center;padding:44px max(96px, calc(50vw - 590px))')}>
+        <div style={css('width:100%;max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:12px')}>
+          <div>
+            <div style={css('font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0E9A49;margin-bottom:14px')}>The problem</div>
+            <h2 className="disp" style={css('font-size:42px;font-weight:700;line-height:1.05;letter-spacing:-0.02em')}>Over two billion dollars,<br />left on the table.</h2>
           </div>
 
           <div style={css('display:grid;grid-template-columns:repeat(3,1fr);border:1px solid rgba(26,26,30,0.1);border-radius:18px;overflow:hidden;background:#fff')}>
@@ -260,24 +244,36 @@ export default function Landing() {
               { v: '85%', c: '#0E9A49', d: 'of eligible discharges go unbilled nationally', dark: false },
               { v: '$2.25B', c: '#7FD3A5', d: 'left unclaimed every year, Medicare alone', dark: true },
             ].map((cell, i) => (
-              <div key={i} style={{ padding: '30px 26px', borderRight: i < 2 ? '1px solid rgba(26,26,30,0.1)' : undefined, background: cell.dark ? '#032640' : undefined }}>
-                <div className="disp" style={{ fontSize: '44px', fontWeight: 700, color: cell.c }}>{cell.v}</div>
-                <div style={{ fontSize: '14px', color: cell.dark ? '#C2BFC9' : '#6B6770', lineHeight: 1.45, marginTop: '10px' }}>{cell.d}</div>
+              <div key={i} style={{ padding: '22px 26px', borderRight: i < 2 ? '1px solid rgba(26,26,30,0.1)' : undefined, background: cell.dark ? '#032640' : undefined }}>
+                <div className="disp" style={{ fontSize: '40px', fontWeight: 700, color: cell.c }}>{cell.v}</div>
+                <div style={{ fontSize: '14px', color: cell.dark ? '#C2BFC9' : '#6B6770', lineHeight: 1.45, marginTop: '8px' }}>{cell.d}</div>
               </div>
             ))}
           </div>
 
-          <div style={css('margin-top:16px;border:1px solid rgba(29,79,215,0.28);background:#EAF0F5;border-radius:18px;padding:32px 36px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px')}>
+          <div style={css('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
+            <div style={css('border:1px solid rgba(26,26,30,0.1);border-radius:18px;padding:22px 28px')}>
+              <div className="disp" style={css('font-size:22px;font-weight:600;line-height:1.12;margin-bottom:10px')}>No one owns the follow-up.</div>
+              <p style={css('font-size:14px;line-height:1.55;color:#54515B')}>Most small practices have no dedicated care coordinator and can't afford to hire one. So discharge follow-up is done by hand, squeezed between phones, rooming, and everything else.</p>
+            </div>
+            <div style={css('background:#032640;border-radius:18px;padding:22px 28px;color:#fff')}>
+              <div className="disp" style={css('font-size:22px;font-weight:600;line-height:1.12;margin-bottom:10px;color:#7FD3A5')}>Patients go unseen. Revenue is forfeited.</div>
+              <p style={css('font-size:14px;line-height:1.55;color:#C2BFC9')}>When the team is at capacity, follow-up is the first thing to drop. Patients miss the check-in that prevents readmissions, and the practice forfeits the Medicare payment it earned.</p>
+            </div>
+          </div>
+
+          <div style={css('border:1px solid rgba(29,79,215,0.28);background:#EAF0F5;border-radius:18px;padding:22px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px')}>
             <div style={{ maxWidth: '580px' }}>
-              <div className="disp" style={css('font-size:23px;font-weight:600;margin-bottom:8px')}>What it means for one practice</div>
-              <p style={css('font-size:15px;line-height:1.55;color:#54515B')}>A two-physician clinic seeing roughly 8 TCM-eligible discharges a month leaves approximately <b style={{ color: '#032640' }}>$22,000 a year</b> uncaptured.</p>
+              <div className="disp" style={css('font-size:21px;font-weight:600;margin-bottom:6px')}>What this means for a single primary care practice</div>
+              <p style={css('font-size:14px;line-height:1.55;color:#54515B')}>A four-physician practice seeing roughly 16 TCM-eligible discharges a month leaves approximately <b style={{ color: '#032640' }}>$45,000 a year</b> uncaptured.</p>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div className="disp" style={css('font-size:52px;font-weight:700;color:#032640')}>~$22k</div>
+              <div className="disp" style={css('font-size:46px;font-weight:700;color:#032640')}>~$45k</div>
               <div style={css('font-size:13px;color:#41566B;font-weight:500')}>per practice / year, recovered</div>
             </div>
           </div>
-          <p style={css('font-size:14px;color:#8A8792;line-height:1.5;margin-top:16px')}>Estimates derived from national Medicare TCM utilization rates and average reimbursement per episode.</p>
+
+          <p style={css('font-size:11px;color:#A8A4AC;line-height:1.5')}>* Estimates derived from national Medicare TCM utilization rates and average reimbursement per episode.</p>
         </div>
       </section>
 
@@ -285,18 +281,18 @@ export default function Landing() {
       <section id="workflow" style={css('min-height:100vh;width:100%;background:#FFFFFF;display:flex;flex-direction:column;padding:48px max(96px, calc(50vw - 590px))')}>
         <div style={css('flex:1;width:100%;max-width:1180px;margin:0 auto;display:flex;flex-direction:column;justify-content:center')}>
           <div style={css('max-width:880px;margin-bottom:24px')}>
-            <div style={css('font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0E9A49;margin-bottom:16px')}>How ContinuaCare works</div>
+            <div style={css('font-size:13px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0E9A49;margin-bottom:16px')}>How Continua works</div>
             <h2 className="disp" style={css('font-size:46px;font-weight:700;line-height:1.05;margin-bottom:16px;letter-spacing:-0.02em;white-space:nowrap')}>Automate transition of care to put<br />Medicare dollars back in your wallet.</h2>
-            <p style={css('font-size:18px;line-height:1.6;color:#54515B')}>The moment a discharge is known, ContinuaCare's AI voice agent runs the whole pipeline, and pulls in a human only when something truly needs one.</p>
+            <p style={css('font-size:18px;line-height:1.6;color:#54515B')}>The moment a discharge is known, Continua's AI agent runs the whole pipeline, and pulls in a human only when it's truly needed.</p>
           </div>
 
           <div style={css('display:grid;grid-template-columns:repeat(5,1fr);gap:14px')}>
             {[
               { t: 'Discharge fires', p: 'The hospital notice lands and the patient record fills in automatically.' },
-              { t: 'ContinuaCare calls', p: 'The agent phones the patient, symptom check, meds, and scheduling, on script.' },
+              { t: 'Continua calls', p: 'The agent phones the patient, symptom check, meds, and scheduling, on script.' },
               { t: 'Flags a human', p: 'Concerning answers hand off to a human, live, or flagged for a callback.' },
-              { t: 'Books + recommends', p: 'The visit is booked, and 99495 or 99496 is proposed for the provider to confirm.' },
-              { t: 'Ready to bill', p: 'After 30 clean days, the episode is ready, fully documented and coded.' },
+              { t: 'Schedules visit', p: 'The visit is scheduled, and 99495 or 99496 is proposed for the provider to confirm.' },
+              { t: 'Ready to bill', p: 'After 30 days, the episode is ready, fully documented and coded.' },
             ].map((step, i) => (
               <div key={i} style={css('background:#F1F1F3;border-radius:14px;padding:18px 20px')}>
                 <div style={css('width:30px;height:30px;border-radius:50%;background:#0E9A49;color:#fff;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:13px;font-weight:700;margin-bottom:16px')}>{i + 1}</div>
@@ -310,7 +306,7 @@ export default function Landing() {
           <div style={css('margin-top:22px;background:#032640;border-radius:24px;padding:30px 40px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:28px')}>
             <div style={css('position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;background:#0E9A49;opacity:0.22;filter:blur(20px)')} />
             <div style={css('position:relative;max-width:560px')}>
-              <h2 className="disp" style={css('font-size:30px;font-weight:700;color:#fff;line-height:1.08;margin-bottom:10px;letter-spacing:-0.02em')}>See ContinuaCare close an episode, live.</h2>
+              <h2 className="disp" style={css('font-size:30px;font-weight:700;color:#fff;line-height:1.08;margin-bottom:10px;letter-spacing:-0.02em')}>See Continua close an episode, live.</h2>
               <p style={css('font-size:16px;line-height:1.5;color:#C2BFC9')}>Trigger a discharge and watch it call the patient, flag a human, book the visit, and hand back a billable episode.</p>
             </div>
             <DemoLink
@@ -331,7 +327,7 @@ export default function Landing() {
                 <span style={css('width:2.5px;height:12px;border-radius:2px;background:#fff')} />
                 <span style={css('width:2.5px;height:9px;border-radius:2px;background:#2FB76C')} />
               </div>
-              <span className="disp" style={css('font-size:17px;font-weight:700')}>ContinuaCare</span>
+              <span className="disp" style={css('font-size:17px;font-weight:700')}>Continua</span>
               <span style={css('font-size:13px;color:#8A8792;margin-left:6px')}>Autonomous transitional care</span>
             </div>
             <div style={css('font-size:13px;color:#8A8792')}>A hackathon demo · not for clinical use</div>

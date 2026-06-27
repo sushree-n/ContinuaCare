@@ -137,7 +137,7 @@ export default function Demo() {
               <span style={css('width:2.5px;height:13px;border-radius:2px;background:#fff')} />
               <span style={css('width:2.5px;height:9px;border-radius:2px;background:#CFE3C8')} />
             </div>
-            <span className="disp" style={css('font-size:19px;font-weight:700')}>ContinuaCare</span>
+            <span className="disp" style={css('font-size:19px;font-weight:700')}>Continua</span>
             <span style={css('font-size:13px;color:#9A968F;font-weight:500;margin-left:2px')}>Care console</span>
           </H>
         </div>
@@ -222,7 +222,7 @@ export default function Demo() {
               </div>
             </div>
 
-            <div style={css('text-align:center;font-size:12px;color:#A39E96;margin-top:14px;flex-shrink:0')}>Demo data · ContinuaCare hackathon prototype · not for clinical use</div>
+            <div style={css('text-align:center;font-size:12px;color:#A39E96;margin-top:14px;flex-shrink:0')}>Demo data · Continua hackathon prototype · not for clinical use</div>
           </div>
         </div>
 
@@ -378,7 +378,7 @@ export default function Demo() {
                   {sel.hasCode && (
                     <div style={css('padding-bottom:4px')}>
                       <SectionHeader>Billing info</SectionHeader>
-                      <div style={css('font-size:13px;line-height:1.5;color:#6B6770;margin-bottom:14px')}>ContinuaCare recommends <b style={{ color: '#032640' }}>{sel.recCode}</b> from the call. Confirm it, or override with the other code.</div>
+                      <div style={css('font-size:13px;line-height:1.5;color:#6B6770;margin-bottom:14px')}>Continua recommends <b style={{ color: '#032640' }}>{sel.recCode}</b> from the call. Confirm it, or override with the other code.</div>
                       <div style={css('display:flex;flex-direction:column;gap:10px;margin-bottom:14px')}>
                         {sel.codeOptions.map((o) => (
                           <div key={o.code} onClick={() => !o.disabled && chooseCode(sel.id, o.code)} style={o.rowStyle}>
