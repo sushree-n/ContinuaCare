@@ -14,7 +14,7 @@ from database import get_db
 from models import TCMEpisode, Patient, Call, CallSchedule, EpisodeState, ComplexityLevel
 from services.triage import run_triage
 
-BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 CALL_DELAY_SECONDS = int(os.environ.get("DEMO_CALL_DELAY_SECONDS", 15))
 
 router = APIRouter(prefix="/episodes", tags=["episodes"])
@@ -122,10 +122,13 @@ async def create_episode(
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
+    # Strip timezone info — Postgres column is TIMESTAMP WITHOUT TIME ZONE
+    discharge_date = body.discharge_date.replace(tzinfo=None)
+
     episode = TCMEpisode(
         id=str(uuid.uuid4()),
         patient_id=body.patient_id,
-        discharge_date=body.discharge_date,
+        discharge_date=discharge_date,
         discharge_notes=body.discharge_notes,
         state=EpisodeState.DISCHARGE_DETECTED,
     )

@@ -196,12 +196,11 @@ async def end_call(ctx: RunContext) -> str:
     try:
         handle = await ctx.session.say(FAREWELL_LINE, allow_interruptions=False)
         await handle.wait_for_playout()
-    except Exception:
-        # A TTS hiccup must never block teardown — fall through to shutdown.
-        logger.exception("Could not play end-call farewell")
-
+    except Exception as e:
+        logger.error("Failed to speak farewell line: %s", e)
     # Gracefully end the session: drain=True flushes any remaining speech before the
-    # session closes. The transcript is posted to the backend by the
-    # post_call_complete job shutdown hook, not here.
+    # session closes. The transcript + visit outcome are posted to the backend by the
+    # post_call_complete job shutdown hook (agent.py), not here — posting here too
+    # would double-complete the call and clobber the visit outcome with empty data.
     ctx.session.shutdown(drain=True)
     return "Call ended."
