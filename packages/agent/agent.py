@@ -21,24 +21,22 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from livekit import api, rtc
+from livekit import api
 from livekit.agents import (
-    Agent,
     AgentServer,
     AgentSession,
     InterruptionOptions,
     JobContext,
     JobProcess,
     PreemptiveGenerationOptions,
-    RunContext,
     TurnHandlingOptions,
     cli,
-    function_tool,
+    room_io,
 )
-from livekit.plugins import deepgram, elevenlabs, openai, silero
+from livekit.plugins import deepgram, elevenlabs, noise_cancellation, openai, silero
 
-from prompts import build_agent_prompt, build_greeting
-from tools import end_call, perform_transfer_to_human, transfer_to_human, escalate, schedule_appointment
+from care_agent import CareAgent
+from tools import perform_transfer_to_human
 
 # Load .env from the repo root by absolute path so the agent works no matter
 # which directory it's launched from (this file lives at packages/agent/agent.py,
@@ -108,30 +106,6 @@ async def fetch_patient(patient_id: str) -> dict:
         "name": "Jane Smith",
         # TODO: age, diagnosis, medications, discharge_date, complexity, ...
     }
-
-
-# ---------------------------------------------------------------------------
-# Agent
-# ---------------------------------------------------------------------------
-
-class CareAgent(Agent):
-    """Post-discharge follow-up agent for a single patient."""
-
-    def __init__(self, patient: dict):
-        super().__init__(
-            instructions=build_agent_prompt(patient),
-            tools=[transfer_to_human, escalate, schedule_appointment, end_call],
-        )
-        self.patient = patient
-        # Set once the patient (SIP participant) joins on an outbound call;
-        # a later real SIP REFER transfer to a human will need this reference.
-        self.participant: rtc.RemoteParticipant | None = None
-
-    async def on_enter(self):
-        # Drive the opening turn from the kickoff prompt; the detailed rules live
-        # in the system prompt (instructions).
-        await self.session.generate_reply(instructions=build_greeting(self.patient))
-
 
 
 # ---------------------------------------------------------------------------
@@ -210,19 +184,25 @@ async def entrypoint(ctx: JobContext):
             return
 
     try:
-        await session.start(agent=agent, room=ctx.room)
+        # Clean the patient's inbound audio before STT/turn detection with Krisp's
+        # telephony-tuned background voice cancellation (removes background voices
+        # and noise on the line). Improves transcript confidence on noisy calls —
+        # see transcript_utils.handle_low_confidence. Requires LiveKit Cloud.
+        await session.start(
+            agent=agent,
+            room=ctx.room,
+            room_options=room_io.RoomOptions(
+                audio_input=room_io.AudioInputOptions(
+                    noise_cancellation=noise_cancellation.BVCTelephony(),
+                ),
+            ),
+        )
     except Exception:
         # Fail safe: if anything goes wrong mid-call, get a human on the line
-        # rather than leaving the patient with a broken agent.
+        # rather than leaving the patient with a broken agent. perform_transfer
+        # owns the spoken announcement (and the failure fallback) itself.
         logger.exception("Agent session error — transferring to care team")
-        try:
-            await session.say(
-                "I'm sorry, I'm having a technical problem. Let me connect you "
-                "to a member of the care team."
-            )
-        except Exception:
-            pass
-        await perform_transfer_to_human("Agent technical failure during call")
+        await perform_transfer_to_human("Agent technical failure during call", session)
 
 
 if __name__ == "__main__":

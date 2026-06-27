@@ -7,6 +7,7 @@ livekit-plugins-deepgram
 livekit-plugins-anthropic
 livekit-plugins-openai
 livekit-plugins-elevenlabs
+livekit-plugins-noise-cancellation~=0.2
 
 # --- Backend API (packages/backend) ---
 fastapi
