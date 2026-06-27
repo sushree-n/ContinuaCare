@@ -102,6 +102,7 @@ async def fetch_patient(patient_id: str) -> dict:
                 episode = ep_resp.json()
                 patient["discharge_date"] = episode.get("discharge_date")
                 patient["complexity"] = episode.get("complexity")
+                patient["discharge_notes"] = episode.get("discharge_notes")
 
         logger.info("fetch_patient(%s) — name=%s diagnosis=%s",
                     patient_id, patient.get("name"), patient.get("diagnosis"))

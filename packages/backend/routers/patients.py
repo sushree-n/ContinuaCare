@@ -74,9 +74,16 @@ async def get_patient_active_episode(patient_id: str, db: AsyncSession = Depends
 
     return {
         "id": episode.id,
+        "patient_id": episode.patient_id,
         "state": episode.state.value if episode.state else None,
         "discharge_date": episode.discharge_date.isoformat() if episode.discharge_date else None,
+        "discharge_notes": episode.discharge_notes,
         "complexity": episode.complexity.value if episode.complexity else None,
+        "triage_rationale": episode.triage_rationale,
         "visit_window_days": episode.visit_window_days,
+        "contact_deadline": episode.contact_deadline.isoformat() if episode.contact_deadline else None,
+        "visit_deadline": episode.visit_deadline.isoformat() if episode.visit_deadline else None,
+        "face_to_face_date": episode.face_to_face_date.isoformat() if episode.face_to_face_date else None,
         "cpt_code": episode.cpt_code,
+        "ready_to_bill": episode.ready_to_bill,
     }

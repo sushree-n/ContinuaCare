@@ -124,7 +124,7 @@ export function toPatientVM(p: ApiPatient, ep?: ApiEpisode, calls?: ApiCall[]): 
     age: p.age,
     sex: 'F',
     phone: p.phone,
-    facility: '—',
+    facility: 'Northside Family Practice',
     dischargeText: ep ? `Day ${day}` : '—',
     dayLine: ep ? `Day ${day}` : '—',
     day,
