@@ -4,8 +4,12 @@ from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+import json
+import os
 import uuid
 import logging
+
+from livekit import api as lkapi
 
 from database import get_db
 from models import Call, CallStatus, TCMEpisode, EpisodeState, Patient
@@ -19,24 +23,34 @@ router = APIRouter(prefix="/calls", tags=["calls"])
 # Outbound call placement — swap in real Twilio SIP logic here
 # ---------------------------------------------------------------------------
 
-async def place_outbound_call(room_name: str, patient_phone: str, episode_id: str, call_id: str):
-    """
-    TODO (teammate): replace this stub with real LiveKit SIP dispatch.
+async def place_outbound_call(room_name: str, patient_phone: str, episode_id: str, call_id: str, patient_id: str):
+    """Dispatch the LiveKit agent to the room with call metadata.
 
-    Real implementation will look roughly like:
-        lk = api.LiveKitAPI(url=LIVEKIT_URL, api_key=..., api_secret=...)
-        await lk.sip.create_sip_participant(
-            api.CreateSIPParticipantRequest(
-                sip_trunk_id=os.getenv("LIVEKIT_SIP_TRUNK_ID"),
-                sip_call_to=patient_phone,
-                room_name=room_name,
-                participant_identity="care-agent",
-                krisp_enabled=True,
+    The agent itself places the SIP outbound call once it starts — it reads
+    phone_number from the dispatch metadata and calls create_sip_participant.
+    """
+    lk_url = os.environ["LIVEKIT_URL"]
+    lk_key = os.environ["LIVEKIT_API_KEY"]
+    lk_secret = os.environ["LIVEKIT_API_SECRET"]
+
+    metadata = json.dumps({
+        "phone_number": patient_phone,
+        "patient_id": patient_id,
+        "episode_id": episode_id,
+        "call_id": call_id,
+    })
+
+    logger.info("Dispatching agent — room=%s phone=%s episode=%s call=%s",
+                room_name, patient_phone, episode_id, call_id)
+
+    async with lkapi.LiveKitAPI(url=lk_url, api_key=lk_key, api_secret=lk_secret) as lk:
+        await lk.agent_dispatch.create_dispatch(
+            lkapi.CreateAgentDispatchRequest(
+                agent_name="continuacare",
+                room=room_name,
+                metadata=metadata,
             )
         )
-    """
-    logger.info("STUB place_outbound_call — room=%s phone=%s episode=%s call=%s",
-                room_name, patient_phone, episode_id, call_id)
 
 
 # ---------------------------------------------------------------------------
@@ -119,6 +133,7 @@ async def trigger_call(
         patient.phone if patient else "",
         episode_id,
         call.id,
+        episode.patient_id,
     )
 
     return call
