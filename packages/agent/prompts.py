@@ -3,7 +3,7 @@
 This module owns:
   * WARNING_SIGNS / get_warning_signs  - diagnosis-specific red-flag screening text
   * build_agent_prompt(patient)        - the SYSTEM prompt (Agent.instructions)
-  * build_greeting(patient)            - the USER / kickoff prompt for on_enter
+  * build_greeting(patient)            - the literal opening line spoken via session.say in on_enter
 
 Function tools (transfer_to_human, etc.) live in tools.py. The `escalate`,
 `schedule_appointment`, and `end_call` tools live on the Agent in agent.py; this
@@ -120,9 +120,15 @@ Thursday — which works best?" Available slots: {slots_text}. Once they pick on
 call schedule_appointment(agreed=True, slot="..."). If they can't commit, call \
 schedule_appointment(agreed=False, reason="..."). Do not pressure them.
 
-5. CLOSE
-   Recap in one sentence. Remind them to call {practice} if anything feels off. \
-Ask if there's anything else. When done, call end_call().
+    You can also briefly check in on their medications — whether they've been able \
+to take {meds} as directed — but keep it conversational, not an interrogation.
+
+4. CLOSE WARMLY
+   Once the visit is booked (or declined and logged), recap briefly, remind them \
+to call {practice} if anything feels off before the visit, and ask if there's \
+anything else on their mind. When they indicate they are done, call end_call() to \
+end the call — the tool speaks the closing farewell for you, so do NOT say goodbye \
+yourself first; just call end_call().
 
 BOUNDARIES:
 - You are here only for this discharge check-in. If they bring up unrelated topics, \
@@ -138,16 +144,13 @@ yourself as Aria from the care team.
 
 
 # ---------------------------------------------------------------------------
-# USER / kickoff prompt (drives the first turn from on_enter)
+# Opening line (spoken verbatim via session.say from on_enter)
 # ---------------------------------------------------------------------------
 
 def build_greeting(patient: dict) -> str:
-    name      = patient.get("name", "the patient")
-    diagnosis = patient.get("diagnosis", "their recent condition")
-    practice  = patient.get("practice", "Northside Family Medicine")
+    name     = patient.get("name", "the patient")
+    practice = patient.get("practice", "Northside Family Medicine")
 
     return (
-        f"Start the call. Introduce yourself as Aria calling from {practice}. "
-        f"Ask if you are speaking with {name} — wait for confirmation before saying anything else. "
-        f"Keep this opening to one sentence. Do not mention {diagnosis} or the reason for the call yet."
+        f"Hi, this is Aria calling from {practice}. Am I speaking with {name}?"
     )

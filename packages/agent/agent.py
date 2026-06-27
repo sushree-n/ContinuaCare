@@ -113,6 +113,49 @@ async def fetch_patient(patient_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Call completion (shutdown hook)
+# ---------------------------------------------------------------------------
+
+async def post_call_complete(session: AgentSession, call_context: dict) -> None:
+    """Post the call transcript + outcome to the backend when the session ends.
+
+    Registered as a job shutdown callback so it runs on every end path: the agent
+    calling end_call, the patient hanging up, or a mid-call error. The backend
+    marks the Call complete, advances the episode, and runs the Claude summarizer.
+
+    Skips the POST when there's no transcript (session never really got going), to
+    avoid recording an empty completion for a call that didn't happen.
+    """
+    import httpx
+
+    call_id = call_context.get("call_id")
+    # history.items is a union (messages, function calls, …); keep only chat
+    # messages and use text_content, which joins the message's text parts.
+    transcript = "\n".join(
+        f"{item.role}: {item.text_content}"
+        for item in session.history.items
+        if item.type == "message" and item.text_content
+    )
+    if not transcript:
+        logger.info("post_call_complete — empty transcript, skipping (call=%s)", call_id)
+        return
+
+    # Visit outcome stashed by the schedule_appointment tool (if it ran).
+    structured_data = session.userdata.get("visit_outcome") or {}
+
+    logger.info("post_call_complete — call=%s chars=%d", call_id, len(transcript))
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(f"{BACKEND_URL}/calls/{call_id}/complete", json={
+                "transcript": transcript,
+                "flags": [],
+                "structured_data": structured_data,
+            })
+    except Exception as e:
+        logger.error("Failed to POST call complete to backend: %s", e)
+
+
+# ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
 
@@ -191,11 +234,21 @@ async def entrypoint(ctx: JobContext):
             ctx.shutdown()
             return
 
+    # Post the call completion on EVERY end path — agent end_call, patient hangup,
+    # or mid-call error — by registering it as a job shutdown hook. Registered only
+    # after the dial succeeded, so the no-answer / no-trunk paths above (which
+    # ctx.shutdown() and return) never post a spurious completion.
+    ctx.add_shutdown_callback(lambda: post_call_complete(session, call_context))
+
     try:
         # Clean the patient's inbound audio before STT/turn detection with Krisp's
         # telephony-tuned background voice cancellation (removes background voices
         # and noise on the line). Improves transcript confidence on noisy calls —
         # see transcript_utils.handle_low_confidence. Requires LiveKit Cloud.
+        #
+        # delete_room_on_close: when the session closes (end_call shutdown or patient
+        # hangup), delete the room so the SIP patient is disconnected instead of left
+        # on a silent line until they hang up themselves.
         await session.start(
             agent=agent,
             room=ctx.room,
@@ -203,6 +256,7 @@ async def entrypoint(ctx: JobContext):
                 audio_input=room_io.AudioInputOptions(
                     noise_cancellation=noise_cancellation.BVCTelephony(),
                 ),
+                delete_room_on_close=True,
             ),
         )
     except Exception:

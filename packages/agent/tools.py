@@ -19,6 +19,14 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 # every error path plays this exact line rather than letting the LLM improvise.
 FAILURE_LINE = "I'm unable to connect you right now; the care team will call you back."
 
+# Fixed closing line played by end_call before the session shuts down, so a normal
+# AI-ended call always gets a spoken goodbye instead of dead air. Kept patient-data-
+# free because the tool's userdata holds only ids, not the practice/clinician name.
+FAREWELL_LINE = (
+    "Take care of yourself, and please reach out to your care team if anything "
+    "changes. Goodbye."
+)
+
 
 async def _say_failure(session) -> str:
     """Speak the fixed failure line on any transfer error, then return a status.
@@ -159,22 +167,16 @@ async def schedule_appointment(ctx: RunContext, agreed: bool, slot: str = "", re
         reason: Why the patient declined or wants to wait (when agreed=False).
     """
     episode_id = ctx.session.userdata.get("episode_id")
-    call_id = ctx.session.userdata.get("call_id")
     logger.info("schedule_appointment agreed=%s slot=%s episode=%s", agreed, slot, episode_id)
 
-    try:
-        async with httpx.AsyncClient() as client:
-            await client.post(f"{BACKEND_URL}/calls/{call_id}/complete", json={
-                "transcript": "",
-                "flags": [],
-                "structured_data": {
-                    "visit_scheduled": agreed,
-                    "visit_slot": slot if agreed else None,
-                    "decline_reason": reason if not agreed else None,
-                },
-            })
-    except Exception as e:
-        logger.error("Failed to POST schedule_appointment to backend: %s", e)
+    # Stash the outcome on the session; the call-completion shutdown hook
+    # (post_call_complete in agent.py) folds it into the single /complete POST.
+    # Posting here too would double-complete the call and clobber the transcript.
+    ctx.session.userdata["visit_outcome"] = {
+        "visit_scheduled": agreed,
+        "visit_slot": slot if agreed else None,
+        "decline_reason": reason if not agreed else None,
+    }
 
     if agreed:
         return f"Follow-up visit booked for {slot}."
@@ -187,36 +189,18 @@ async def end_call(ctx: RunContext) -> str:
     call_id = ctx.session.userdata.get("call_id")
     logger.info("end_call — call=%s", call_id)
 
+    # Speak the fixed farewell and let it finish BEFORE shutting down, so the patient
+    # always hears a goodbye rather than the line going dead. allow_interruptions=False
+    # guarantees it completes; wait_for_playout ensures it finishes before the session
+    # closes and delete_room_on_close (agent.py) deletes the room / disconnects them.
     try:
-        lines = []
-        for t in ctx.session.history.items:
-            if not hasattr(t, "content") or not t.content:
-                continue
-            content = t.content
-            if isinstance(content, list):
-                text = " ".join(
-                    part.text if hasattr(part, "text") else str(part)
-                    for part in content
-                    if not (hasattr(part, "type") and getattr(part, "type", None) == "tool_use")
-                )
-            else:
-                text = str(content)
-            text = text.strip()
-            if text:
-                role = "Agent" if t.role == "assistant" else "Patient"
-                lines.append(f"{role}: {text}")
-        transcript = "\n".join(lines)
-        async with httpx.AsyncClient() as client:
-            await client.post(f"{BACKEND_URL}/calls/{call_id}/complete", json={
-                "transcript": transcript,
-                "flags": [],
-                "structured_data": {},
-            })
+        handle = await ctx.session.say(FAREWELL_LINE, allow_interruptions=False)
+        await handle.wait_for_playout()
     except Exception as e:
-        logger.error("Failed to POST call complete to backend: %s", e)
-
-    try:
-        await ctx.session.aclose()
-    except Exception:
-        pass
+        logger.error("Failed to speak farewell line: %s", e)
+    # Gracefully end the session: drain=True flushes any remaining speech before the
+    # session closes. The transcript + visit outcome are posted to the backend by the
+    # post_call_complete job shutdown hook (agent.py), not here — posting here too
+    # would double-complete the call and clobber the visit outcome with empty data.
+    ctx.session.shutdown(drain=True)
     return "Call ended."
