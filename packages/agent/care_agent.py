@@ -33,9 +33,10 @@ class CareAgent(Agent):
         self.participant: rtc.RemoteParticipant | None = None
 
     async def on_enter(self):
-        # Drive the opening turn from the kickoff prompt; the detailed rules live
-        # in the system prompt (instructions).
-        await self.session.generate_reply(instructions=build_greeting(self.patient))
+        # Speak a fixed opening line the instant the agent joins — no LLM round-trip —
+        # so the patient hears Aria the moment they pick up. add_to_chat_ctx (default
+        # True) records it so the LLM continues naturally from the greeting.
+        await self.session.say(build_greeting(self.patient))
 
     async def tts_node(
         self, text: AsyncIterable[str], model_settings: ModelSettings

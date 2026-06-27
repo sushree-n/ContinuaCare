@@ -19,6 +19,14 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 # every error path plays this exact line rather than letting the LLM improvise.
 FAILURE_LINE = "I'm unable to connect you right now; the care team will call you back."
 
+# Fixed closing line played by end_call before the session shuts down, so a normal
+# AI-ended call always gets a spoken goodbye instead of dead air. Kept patient-data-
+# free because the tool's userdata holds only ids, not the practice/clinician name.
+FAREWELL_LINE = (
+    "Take care of yourself, and please reach out to your care team if anything "
+    "changes. Goodbye."
+)
+
 
 async def _say_failure(session) -> str:
     """Speak the fixed failure line on any transfer error, then return a status.
@@ -181,9 +189,19 @@ async def end_call(ctx: RunContext) -> str:
     call_id = ctx.session.userdata.get("call_id")
     logger.info("end_call — call=%s", call_id)
 
-    # Gracefully end the session: drain=True lets the warm closing line finish
-    # playing before the session closes. delete_room_on_close (set in agent.py)
-    # then deletes the room, disconnecting the patient. The transcript is posted
-    # to the backend by the post_call_complete job shutdown hook, not here.
+    # Speak the fixed farewell and let it finish BEFORE shutting down, so the patient
+    # always hears a goodbye rather than the line going dead. allow_interruptions=False
+    # guarantees it completes; wait_for_playout ensures it finishes before the session
+    # closes and delete_room_on_close (agent.py) deletes the room / disconnects them.
+    try:
+        handle = await ctx.session.say(FAREWELL_LINE, allow_interruptions=False)
+        await handle.wait_for_playout()
+    except Exception:
+        # A TTS hiccup must never block teardown — fall through to shutdown.
+        logger.exception("Could not play end-call farewell")
+
+    # Gracefully end the session: drain=True flushes any remaining speech before the
+    # session closes. The transcript is posted to the backend by the
+    # post_call_complete job shutdown hook, not here.
     ctx.session.shutdown(drain=True)
     return "Call ended."
