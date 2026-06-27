@@ -159,22 +159,16 @@ async def schedule_appointment(ctx: RunContext, agreed: bool, slot: str = "", re
         reason: Why the patient declined or wants to wait (when agreed=False).
     """
     episode_id = ctx.session.userdata.get("episode_id")
-    call_id = ctx.session.userdata.get("call_id")
     logger.info("schedule_appointment agreed=%s slot=%s episode=%s", agreed, slot, episode_id)
 
-    try:
-        async with httpx.AsyncClient() as client:
-            await client.post(f"{BACKEND_URL}/calls/{call_id}/complete", json={
-                "transcript": "",
-                "flags": [],
-                "structured_data": {
-                    "visit_scheduled": agreed,
-                    "visit_slot": slot if agreed else None,
-                    "decline_reason": reason if not agreed else None,
-                },
-            })
-    except Exception as e:
-        logger.error("Failed to POST schedule_appointment to backend: %s", e)
+    # Stash the outcome on the session; the call-completion shutdown hook
+    # (post_call_complete in agent.py) folds it into the single /complete POST.
+    # Posting here too would double-complete the call and clobber the transcript.
+    ctx.session.userdata["visit_outcome"] = {
+        "visit_scheduled": agreed,
+        "visit_slot": slot if agreed else None,
+        "decline_reason": reason if not agreed else None,
+    }
 
     if agreed:
         return f"Follow-up visit booked for {slot}."
@@ -187,23 +181,9 @@ async def end_call(ctx: RunContext) -> str:
     call_id = ctx.session.userdata.get("call_id")
     logger.info("end_call — call=%s", call_id)
 
-    try:
-        transcript = "\n".join(
-            f"{t.role}: {t.content}"
-            for t in ctx.session.history.items
-            if hasattr(t, "content") and t.content
-        )
-        async with httpx.AsyncClient() as client:
-            await client.post(f"{BACKEND_URL}/calls/{call_id}/complete", json={
-                "transcript": transcript,
-                "flags": [],
-                "structured_data": {},
-            })
-    except Exception as e:
-        logger.error("Failed to POST call complete to backend: %s", e)
-
-    try:
-        await ctx.session.aclose()
-    except Exception:
-        pass
+    # Gracefully end the session: drain=True lets the warm closing line finish
+    # playing before the session closes. delete_room_on_close (set in agent.py)
+    # then deletes the room, disconnecting the patient. The transcript is posted
+    # to the backend by the post_call_complete job shutdown hook, not here.
+    ctx.session.shutdown(drain=True)
     return "Call ended."

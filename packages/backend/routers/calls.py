@@ -159,7 +159,11 @@ async def complete_call(
 
     ep_result = await db.execute(select(TCMEpisode).where(TCMEpisode.id == call.episode_id))
     episode = ep_result.scalar_one_or_none()
-    if episode:
+    # Only advance a call still in progress. The agent posts completion on every
+    # end path (including after an escalation+transfer), so guard against
+    # downgrading an already-ESCALATED episode back to CALL_COMPLETE — the call
+    # record (transcript/summary) is still saved above regardless of state.
+    if episode and episode.state == EpisodeState.CALL_IN_PROGRESS:
         episode.state = EpisodeState.CALL_COMPLETE
 
     await db.commit()
@@ -216,6 +220,14 @@ async def _run_summarizer(call_id: str, episode_id: str, transcript: str):
         pt_result = await db.execute(sa_select(Patient).where(Patient.id == episode.patient_id))
         patient = pt_result.scalar_one_or_none()
 
+        # The agent's schedule_appointment outcome (visit_slot, decline_reason, and
+        # the authoritative visit_scheduled) was posted as structured_data by the
+        # completion hook. Capture it before the summarizer overwrites the column.
+        # isinstance narrows the loosely-typed JSON column to a dict so it can be
+        # safely unpacked into the merge below.
+        existing = call.structured_data
+        agent_data = existing if isinstance(existing, dict) else {}
+
         try:
             summary = await run_summarizer(
                 transcript=transcript,
@@ -226,7 +238,9 @@ async def _run_summarizer(call_id: str, episode_id: str, transcript: str):
                 attempt_number=call.attempt_number,
             )
             call.summary = summary.get("summary")
-            call.structured_data = summary
+            # Merge so the summarizer's clinical fields are added but the agent's
+            # tool-captured booking facts win on any overlapping key (visit_scheduled).
+            call.structured_data = {**summary, **agent_data}
         except Exception as e:
             logger.error("Summarizer failed for call %s: %s", call_id, e)
 
