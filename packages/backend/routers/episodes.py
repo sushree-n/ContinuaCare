@@ -4,11 +4,18 @@ from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timedelta
+import asyncio
+import os
 import uuid
+
+import httpx
 
 from database import get_db
 from models import TCMEpisode, Patient, EpisodeState, ComplexityLevel
 from services.triage import run_triage
+
+BACKEND_URL = "http://localhost:8000"
+CALL_DELAY_SECONDS = int(os.environ.get("DEMO_CALL_DELAY_SECONDS", 15))
 
 router = APIRouter(prefix="/episodes", tags=["episodes"])
 
@@ -89,8 +96,18 @@ async def _run_triage_and_update(episode_id: str, patient: Patient, discharge_no
         except Exception as e:
             # don't crash the background task — leave episode in DISCHARGE_DETECTED
             print(f"[triage] failed for episode {episode_id}: {e}")
+            return
 
         await db.commit()
+
+    # triage done — wait then auto-trigger the call
+    await asyncio.sleep(CALL_DELAY_SECONDS)
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(f"{BACKEND_URL}/calls/trigger/{episode_id}")
+        print(f"[auto-trigger] call triggered for episode {episode_id}")
+    except Exception as e:
+        print(f"[auto-trigger] failed for episode {episode_id}: {e}")
 
 
 @router.post("", response_model=EpisodeResponse, status_code=201)

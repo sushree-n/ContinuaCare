@@ -6,10 +6,13 @@ itself; this module holds standalone, shared tools.
 """
 
 import logging
+import os
 
+import httpx
 from livekit.agents import RunContext, function_tool
 
 logger = logging.getLogger("continuacare.agent")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 
 async def perform_transfer_to_human(reason: str) -> str:
@@ -70,8 +73,21 @@ async def escalate(ctx: RunContext, reason: str, severity: str = "urgent") -> st
         reason: Short factual summary, e.g. "Chest tightness since yesterday".
         severity: "urgent" for emergencies, "monitor" for lower-acuity concerns.
     """
-    # MOCK — later POSTs to {BACKEND_URL}/escalations.
-    logger.info("MOCK escalate (%s): %s", severity, reason)
+    episode_id = ctx.userdata.get("episode_id")
+    call_id = ctx.userdata.get("call_id")
+    logger.info("escalate (%s): %s — episode=%s call=%s", severity, reason, episode_id, call_id)
+
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(f"{BACKEND_URL}/escalations", json={
+                "episode_id": episode_id,
+                "call_id": call_id,
+                "reason": reason,
+                "severity": severity,
+            })
+    except Exception as e:
+        logger.error("Failed to POST escalation to backend: %s", e)
+
     return "Escalation recorded for the care team."
 
 
@@ -95,7 +111,23 @@ async def schedule_appointment(ctx: RunContext, agreed: bool, slot: str = "", re
 @function_tool()
 async def end_call(ctx: RunContext) -> str:
     """End the call once the conversation is complete."""
-    # MOCK — later posts the transcript/summary to {BACKEND_URL}/calls/{id}/complete.
-    logger.info("MOCK end_call — closing session")
+    call_id = ctx.userdata.get("call_id")
+    logger.info("end_call — call=%s", call_id)
+
+    try:
+        transcript = "\n".join(
+            f"{t.role}: {t.content}"
+            for t in ctx.session.history.items
+            if hasattr(t, "content") and t.content
+        )
+        async with httpx.AsyncClient() as client:
+            await client.post(f"{BACKEND_URL}/calls/{call_id}/complete", json={
+                "transcript": transcript,
+                "flags": [],
+                "structured_data": {},
+            })
+    except Exception as e:
+        logger.error("Failed to POST call complete to backend: %s", e)
+
     await ctx.session.aclose()
     return "Call ended."

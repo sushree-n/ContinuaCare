@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 import models
-from routers import patients, episodes
+from routers import patients, episodes, escalations, calls
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -22,6 +22,8 @@ app.add_middleware(
 
 app.include_router(patients.router)
 app.include_router(episodes.router)
+app.include_router(escalations.router)
+app.include_router(calls.router)
 
 
 @app.get("/health")

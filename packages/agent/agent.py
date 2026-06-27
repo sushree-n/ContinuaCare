@@ -80,27 +80,29 @@ server.setup_fnc = prewarm
 # ---------------------------------------------------------------------------
 
 async def fetch_patient(patient_id: str) -> dict:
-    """Fetch the patient record the agent needs for this call.
-
-    MOCK for now — returns a hardcoded record (only the name matters at this
-    stage). Later this will be a real call, roughly:
-
-        async with httpx.AsyncClient() as client:
+    """Fetch the patient + active episode data the agent needs for this call."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(f"{BACKEND_URL}/patients/{patient_id}")
             resp.raise_for_status()
-            return resp.json()
+            patient = resp.json()
 
-    `prompts.py` reads every field with `.get(..., default)`, so a name-only dict
-    is enough to drive a coherent call until more fields (age, diagnosis,
-    medications, discharge_date, complexity) are wired in.
-    """
-    logger.info("MOCK fetch_patient(%s) — would GET %s/patients/%s",
-                patient_id, BACKEND_URL, patient_id)
-    return {
-        "id": patient_id,
-        "name": "Jane Smith",
-        # TODO: age, diagnosis, medications, discharge_date, complexity, ...
-    }
+        # also pull the active episode for discharge_date + complexity
+        async with httpx.AsyncClient(timeout=10) as client:
+            ep_resp = await client.get(f"{BACKEND_URL}/patients/{patient_id}/episode")
+            if ep_resp.status_code == 200:
+                episode = ep_resp.json()
+                patient["discharge_date"] = episode.get("discharge_date")
+                patient["complexity"] = episode.get("complexity")
+
+        logger.info("fetch_patient(%s) — name=%s diagnosis=%s",
+                    patient_id, patient.get("name"), patient.get("diagnosis"))
+        return patient
+
+    except Exception as e:
+        logger.error("fetch_patient(%s) failed: %s — using fallback", patient_id, e)
+        return {"id": patient_id, "name": "the patient"}
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +134,19 @@ class CareAgent(Agent):
 async def entrypoint(ctx: JobContext):
     ctx.log_context_fields = {"room": ctx.room.name}
 
-    patient = await fetch_patient(DEFAULT_PATIENT_ID)
+    # Pull call context from room metadata (set by backend when dispatching).
+    # Falls back to demo defaults so the agent still works from the playground.
+    import json as _json
+    try:
+        meta = _json.loads(ctx.room.metadata or "{}")
+    except Exception:
+        meta = {}
+
+    ctx.userdata["episode_id"] = meta.get("episode_id", "demo-episode")
+    ctx.userdata["call_id"] = meta.get("call_id", "demo-call")
+    ctx.userdata["patient_id"] = meta.get("patient_id", DEFAULT_PATIENT_ID)
+
+    patient = await fetch_patient(ctx.userdata["patient_id"])
 
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
