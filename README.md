@@ -142,11 +142,11 @@ When triage is uncertain, ContinuaCare classifies **HIGH** — patient safety ov
 ---
 
 ## Team
-Ganesh Kudtarkar
-Sushree Nadiminty
-Titiksha Wagh
-Neil Noronha
-Giuliana Wladessa Manca
-Healing: Palak Majmudar
+- Ganesh Kudtarkar
+- Sushree Nadiminty
+- Titiksha Wagh
+- Neil Noronha
+- Giuliana Wladessa Manca
+- Healing: Palak Majmudar
 
 Built at the Healthcare AI Hackathon, June 26–27, 2026.
