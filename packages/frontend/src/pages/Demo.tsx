@@ -141,16 +141,7 @@ export default function Demo() {
             <span style={css('font-size:13px;color:#9A968F;font-weight:500;margin-left:2px')}>Care console</span>
           </H>
         </div>
-        <div style={css('display:flex;align-items:center;gap:14px')}>
-          <H
-            as="button"
-            onClick={triggerDischarge}
-            style={css('display:flex;align-items:center;gap:9px;background:#032640;color:#fff;font-weight:600;font-size:14.5px;padding:11px 16px 11px 18px;border:none;border-radius:8px;cursor:pointer')}
-            hoverStyle={{ background: '#33323a' }}
-          >
-            <span style={css('font-size:15px')}>＋</span> Simulate Discharge
-          </H>
-        </div>
+        <div style={css('display:flex;align-items:center;gap:14px')} />
         </div>
       </div>
 
