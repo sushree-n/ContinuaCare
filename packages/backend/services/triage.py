@@ -4,8 +4,8 @@ from openai import AsyncOpenAI
 from prompts import DISCHARGE_ANALYSIS_PROMPT
 
 client = AsyncOpenAI(
-    api_key=os.environ["OPENROUTER_API_KEY"],
-    base_url=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+    api_key=os.environ["BASETEN_API_KEY"],
+    base_url="https://inference.baseten.co/v1",
 )
 
 
@@ -21,7 +21,7 @@ async def run_triage(
     )
 
     response = await client.chat.completions.create(
-        model="anthropic/claude-sonnet-4-5",
+        model="deepseek-ai/DeepSeek-V4-Pro",
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
     )
