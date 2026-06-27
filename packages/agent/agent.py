@@ -24,14 +24,16 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    InterruptionOptions,
     JobContext,
     JobProcess,
+    PreemptiveGenerationOptions,
     RunContext,
+    TurnHandlingOptions,
     cli,
     function_tool,
 )
 from livekit.plugins import deepgram, elevenlabs, openai, silero
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from prompts import build_agent_prompt, build_greeting
 from tools import end_call, perform_transfer_to_human, transfer_to_human, escalate, schedule_appointment
@@ -46,6 +48,17 @@ logger.setLevel(logging.INFO)
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 DEFAULT_PATIENT_ID = "demo-patient-001"
+
+# Turn handling — let the STT (Deepgram) drive end-of-turn via its own
+# end-of-speech signal instead of bare VAD silence, use the adaptive barge-in
+# model so brief acknowledgements ("mm-hmm") don't interrupt the agent, and
+# generate the reply preemptively to cut latency. VAD is still supplied to the
+# session for responsive interruption handling. See LiveKit TurnHandlingOptions.
+TURN_HANDLING = TurnHandlingOptions(
+    interruption=InterruptionOptions(mode="adaptive"),
+    turn_detection="stt",
+    preemptive_generation=PreemptiveGenerationOptions(enabled=True),
+)
 
 server = AgentServer()
 
@@ -126,18 +139,15 @@ async def entrypoint(ctx: JobContext):
         stt=deepgram.STT(model="nova-3-medical"),
         llm=openai.LLM(
             model="anthropic/claude-sonnet-4-5",
-            api_key=os.getenv("OPENROUTER_API_KEY"),
+            api_key=os.environ["OPENROUTER_API_KEY"],
             base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
         ),
         tts=elevenlabs.TTS(
-            api_key=os.getenv("ELEVENLABS_API_KEY"),
-            voice_id=os.getenv("ELEVENLABS_VOICE_ID"),
+            api_key=os.environ["ELEVENLABS_API_KEY"],
+            voice_id=os.environ["ELEVENLABS_VOICE_ID"],
             model="eleven_turbo_v2",
         ),
-        # Semantic end-of-turn detection: wait until the patient has actually
-        # finished their thought instead of replying on the first silence. VAD
-        # above still drives interruption handling. See CLAUDE.md / LiveKit docs.
-        turn_detection=MultilingualModel(),
+        turn_handling=TURN_HANDLING,
     )
 
     try:
