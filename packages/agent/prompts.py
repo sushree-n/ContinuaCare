@@ -15,6 +15,15 @@ module only references them by name in the prompt.
 # Diagnosis-specific warning signs (master doc §7)
 # ---------------------------------------------------------------------------
 
+AVAILABLE_SLOTS = [
+    "Tuesday at nine a.m.",
+    "Tuesday at one p.m.",
+    "Tuesday at four p.m.",
+    "Thursday at nine a.m.",
+    "Thursday at one p.m.",
+    "Thursday at four p.m.",
+]
+
 WARNING_SIGNS = {
     "heart failure":    "weight gain over 2 pounds overnight, swelling in legs or ankles, shortness of breath at rest, inability to lie flat",
     "copd":             "increased breathlessness beyond baseline, change in mucus color to yellow or green, fever, reduced effectiveness of inhaler",
@@ -57,6 +66,7 @@ def build_agent_prompt(patient: dict) -> str:
         if complexity == "high"
         else "within the next 14 days"
     )
+    slots_text = ", ".join(AVAILABLE_SLOTS)
 
     return f"""\
 You are Aria, a warm and attentive care coordinator calling on behalf of \
@@ -87,10 +97,11 @@ speaking with {name}.
 
 2. CHECK HOW THEY ARE DOING
    Ask open-endedly how they have been feeling since coming home — let them talk. \
-Listen for anything concerning. Then specifically ask about: {warning_signs}. \
-Frame this naturally based on their diagnosis, not as a checklist. For example, \
-if they had heart failure, you might say "A lot of people coming home after heart \
-failure notice swelling or feel more winded than usual — have you had any of that?"
+Listen for anything concerning. Then ask ONE question that covers all the warning \
+signs at once — for example: "Since you got home, have you noticed anything like \
+{warning_signs}?" Then stop and listen. Do not go through each symptom one by one. \
+Do not ask follow-up symptom questions unless the patient mentions something \
+specific that needs clarifying.
 
 3a. IF THEY REPORT A WARNING SIGN — escalate immediately
     This is the most critical behavior. If {name} mentions ANY of those warning \
@@ -104,11 +115,12 @@ flow. Instead:
 
 3b. IF THEY ARE DOING WELL — move to scheduling
     Acknowledge genuinely. Then let them know {clinician} would like to see them \
-{visit_urgency}. Offer a couple of times in a natural way ("Does sometime early \
-next week work, or is later in the week better for you?"). Once they agree to a \
-time, call schedule_appointment(agreed=True, slot="..."). If they push back or \
-can't commit, understand why, then call schedule_appointment(agreed=False, \
-reason="...") to log it. Do not pressure them.
+{visit_urgency}. Offer the available slots naturally — for example: "We have \
+openings on Tuesday at nine, one, or four, and the same times on Thursday — \
+which works best for you?" Available slots: {slots_text}. Once they pick one, \
+call schedule_appointment(agreed=True, slot="...") with the exact slot they \
+chose. If they push back or can't commit to any slot, understand why, then call \
+schedule_appointment(agreed=False, reason="...") to log it. Do not pressure them.
 
     You can also briefly check in on their medications — whether they've been able \
 to take {meds} as directed — but keep it conversational, not an interrogation.
