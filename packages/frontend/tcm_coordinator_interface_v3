@@ -77,30 +77,6 @@
   }
   .simbtn:disabled{opacity:.55;cursor:default}
 
-  /* live discharge button — green to distinguish from the demo simulate button */
-  #livebtn{background:#1A5C38;border-color:#247A4A;color:#E4F2EA}
-  #livebtn:hover{background:#1F6E43;border-color:#2E9458}
-  #livebtn i{color:#6DDBA0}
-  #livebtn .demotag{color:#A3D4B8;border-color:#2E7A4E}
-
-  /* demo reset button */
-  .resetbtn{
-    display:flex;align-items:center;gap:6px;
-    background:transparent;color:#8593A3;border:1px solid #3D5A7D;
-    padding:6px 11px;border-radius:8px;font-family:inherit;font-size:12px;font-weight:500;
-    cursor:pointer;transition:all .12s;
-  }
-  .resetbtn:hover{background:#2A3F57;color:#C3D0DD;border-color:#5A7AA0}
-  .resetbtn i{font-size:14px}
-
-  /* escalation pulse — draws the eye when a red card first appears */
-  @keyframes escPulse{
-    0%{box-shadow:0 0 0 0 rgba(178,58,46,.5)}
-    50%{box-shadow:0 0 0 8px rgba(178,58,46,0)}
-    100%{box-shadow:0 0 0 0 rgba(178,58,46,0)}
-  }
-  .row.esc-new{animation:escPulse 1s ease 3}
-
   /* toast */
   .toasts{position:fixed;top:66px;right:18px;z-index:50;display:flex;flex-direction:column;gap:9px;align-items:flex-end}
   .toast{
@@ -424,11 +400,8 @@
     <button class="simbtn" id="livebtn" title="Create a real patient and dispatch the live voice agent">
       <i class="ti ti-phone-outgoing"></i> Live discharge <span class="demotag">live</span>
     </button>
-    <button class="resetbtn" id="resetbtn" title="Wipe all data and start fresh between demo runs">
-      <i class="ti ti-refresh"></i> Reset
-    </button>
     <div class="who">
-      <span id="liveclock"></span>
+      <span>Tue, Jun 26 · 9:14 AM</span>
       <span class="av">DM</span>
       <span>Dana Mejia, RN</span>
     </div>
@@ -1346,68 +1319,10 @@ function handleLiveEscalation(esc) {
     `${p.name}: ${esc.reason}`,
     'alert'
   );
-
-  // pulse the row red 3 times to draw the eye
-  requestAnimationFrame(() => {
-    const rowEl = document.querySelector(`.row[data-id="${p.id}"]`);
-    if (rowEl) {
-      rowEl.classList.add('esc-new');
-      setTimeout(() => rowEl.classList.remove('esc-new'), 3500);
-    }
-  });
 }
 
 setInterval(pollEscalations, 3000);
 document.getElementById('livebtn').onclick = liveDischarge;
-
-// ---------------------------------------------------------------------------
-// Live clock
-// ---------------------------------------------------------------------------
-
-function updateClock() {
-  const now = new Date();
-  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const day = days[now.getDay()];
-  const mon = months[now.getMonth()];
-  const date = now.getDate();
-  const hrs = now.getHours();
-  const mins = String(now.getMinutes()).padStart(2, '0');
-  const ampm = hrs >= 12 ? 'PM' : 'AM';
-  const h = hrs % 12 || 12;
-  document.getElementById('liveclock').textContent = `${day}, ${mon} ${date} · ${h}:${mins} ${ampm}`;
-}
-updateClock();
-setInterval(updateClock, 10000);
-
-// ---------------------------------------------------------------------------
-// Demo reset
-// ---------------------------------------------------------------------------
-
-document.getElementById('resetbtn').onclick = async () => {
-  const btn = document.getElementById('resetbtn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader-2"></i> Resetting…';
-  try {
-    const resp = await fetch(`${API_URL}/demo/reset`);
-    if (resp.ok) {
-      const data = await resp.json();
-      toast('Demo reset', `Cleared ${data.deleted.patients} patient(s) and ${data.deleted.escalations} escalation(s). Ready for the next run.`);
-      // clear live tracking state
-      Object.keys(LIVE_EPISODES).forEach(k => delete LIVE_EPISODES[k]);
-      SEEN_ESCALATIONS.clear();
-    } else {
-      toast('Reset failed', `Backend returned ${resp.status} — is DEMO_MODE=true?`, 'alert');
-    }
-  } catch (e) {
-    toast('Reset failed', 'Backend not reachable.', 'alert');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-refresh"></i> Reset';
-  }
-};
-
-
 </script>
 </body>
 </html>
