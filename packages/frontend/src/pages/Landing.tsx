@@ -209,12 +209,13 @@ export default function Landing() {
           </div>
 
           <div style={css('margin-top:28px;border:1px solid rgba(26,26,30,0.1);border-radius:18px;padding:26px 36px')}>
-            <div style={css('display:grid;grid-template-columns:repeat(3,1fr);gap:24px;position:relative')}>
-              <div style={css('position:absolute;top:17px;left:18px;right:calc(33.333% - 34px);height:2px;background:linear-gradient(90deg,#2FB76C,#032640 55%,#D98686)')} />
+            <div style={css('display:grid;grid-template-columns:repeat(4,1fr);gap:24px;position:relative')}>
+              <div style={css('position:absolute;top:17px;left:18px;right:calc(25% - 34px);height:2px;background:linear-gradient(90deg,#2FB76C,#032640 40%,#032640 65%,#2FB76C)')} />
               {[
-                { color: '#0E9A49', icon: <path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-5h6v5" />, t: 'A patient comes home', p: 'New medications, new instructions, and the highest readmission risk of the whole recovery.' },
-                { color: '#032640', icon: <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />, t: 'Someone must follow up, by hand', p: 'Call and screen the patient, book the visit, document it, on whoever has a spare minute.' },
-                { color: '#C0473F', icon: <><circle cx="12" cy="12" r="9" /><path d="M15 9l-6 6M9 9l6 6" /></>, t: 'So it falls through', p: 'The check-in never happens, the patient goes unseen, and the payment is forfeited.' },
+                { color: '#0E9A49', icon: <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />, t: 'Patient is discharged', p: 'The patient leaves the hospital with new medications, instructions, and the highest readmission risk of the recovery.' },
+                { color: '#032640', icon: <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />, t: 'Someone must follow up', p: 'A clinical staff member must call and screen the patient, book the visit, document it within 48 hours.' },
+                { color: '#032640', icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>, t: 'Face-to-face visit', p: 'The physician sees the patient within 7–14 days, reconciles medications, and determines complexity.' },
+                { color: '#0E9A49', icon: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="m9 15 2 2 4-4" /></>, t: 'Billing', p: 'Once all services are complete, the episode is coded and the claim is submitted.' },
               ].map((s, i) => (
                 <div key={i} style={{ position: 'relative' }}>
                   <div style={{ ...css('width:36px;height:36px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;margin-bottom:18px;position:relative;z-index:1'), border: '2px solid ' + s.color, color: s.color }}>
@@ -251,15 +252,12 @@ export default function Landing() {
             ))}
           </div>
 
-          <div style={css('display:grid;grid-template-columns:1fr 1fr;gap:12px')}>
-            <div style={css('border:1px solid rgba(26,26,30,0.1);border-radius:18px;padding:22px 28px')}>
-              <div className="disp" style={css('font-size:22px;font-weight:600;line-height:1.12;margin-bottom:10px')}>No one owns the follow-up.</div>
-              <p style={css('font-size:14px;line-height:1.55;color:#54515B')}>Most small practices have no dedicated care coordinator and can't afford to hire one. So discharge follow-up is done by hand, squeezed between phones, rooming, and everything else.</p>
-            </div>
-            <div style={css('background:#032640;border-radius:18px;padding:22px 28px;color:#fff')}>
-              <div className="disp" style={css('font-size:22px;font-weight:600;line-height:1.12;margin-bottom:10px;color:#7FD3A5')}>Patients go unseen. Revenue is forfeited.</div>
-              <p style={css('font-size:14px;line-height:1.55;color:#C2BFC9')}>When the team is at capacity, follow-up is the first thing to drop. Patients miss the check-in that prevents readmissions, and the practice forfeits the Medicare payment it earned.</p>
-            </div>
+          <div className="disp" style={css('font-size:26px;font-weight:700;line-height:1.45;padding:8px 4px')}>
+            <span style={{ color: '#032640' }}>No one owns the follow-up.</span>
+            <span style={{ display: 'inline-block', width: '28px' }} />
+            <span style={{ color: '#0E9A49' }}>Patients go unseen.</span>
+            <span style={{ display: 'inline-block', width: '28px' }} />
+            <span style={{ color: '#032640' }}>Revenue is forfeited.</span>
           </div>
 
           <div style={css('border:1px solid rgba(29,79,215,0.28);background:#EAF0F5;border-radius:18px;padding:22px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px')}>
