@@ -74,14 +74,14 @@ export const useStore = create<ContinuaCareState>((set, get) => ({
         set((s) => ({
           openEscalationIds: ids,
           patients: s.patients.map((p) => {
-            const escalated = data.some((e) => e.episode_id === p.id || s.patients.find(pt => pt.id === p.id))
-            // match by episode — we need to track episode_id on patient for this
-            // for now flag any patient whose id appears in escalation episode_ids
-            const hasFlag = data.some((e) => {
-              // episode_id won't match patient.id directly; we store episode_id in patient status
-              return false // placeholder — see note below
-            })
-            return p
+            const esc = p.episodeId ? data.find((e) => e.episode_id === p.episodeId) : undefined
+            if (!esc) return p
+            return {
+              ...p,
+              flag: esc.reason,
+              statusKind: 'flag' as const,
+              hasEpisode: true,
+            }
           }),
         }))
       } catch { /* silently ignore poll errors */ }

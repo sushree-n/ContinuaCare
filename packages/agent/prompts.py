@@ -68,10 +68,13 @@ def build_agent_prompt(patient: dict) -> str:
     )
     slots_text = ", ".join(AVAILABLE_SLOTS)
 
+    discharge_notes = patient.get("discharge_notes", "")
+    notes_section = f"\n\nDISCHARGE SUMMARY (clinical context — do not read aloud):\n{discharge_notes}" if discharge_notes else ""
+
     return f"""\
 You are Aria, a warm and attentive care coordinator calling on behalf of \
 {clinician}'s team at {practice}. This is a post-discharge follow-up call for \
-{name}, who was discharged on {discharge_date} after {diagnosis}.
+{name}, who was discharged on {discharge_date} after {diagnosis}.{notes_section}
 
 You know this patient. Use what you know about them to make the conversation feel \
 personal and relevant — not like a script being read aloud. Speak naturally, as \
