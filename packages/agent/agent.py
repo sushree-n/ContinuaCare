@@ -30,7 +30,7 @@ from livekit.agents import (
     cli,
     function_tool,
 )
-from livekit.plugins import anthropic, deepgram, elevenlabs, silero
+from livekit.plugins import deepgram, elevenlabs, openai, silero
 
 from prompts import build_agent_prompt, build_greeting
 from tools import end_call, perform_transfer_to_human, transfer_to_human, escalate, schedule_appointment
@@ -38,7 +38,7 @@ from tools import end_call, perform_transfer_to_human, transfer_to_human, escala
 # Load .env.local from the repo root by absolute path so the agent works no
 # matter which directory it's launched from (this file lives at
 # packages/agent/agent.py, so the root is two levels up).
-load_dotenv(Path(__file__).resolve().parents[2] / ".env.local")
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 logger = logging.getLogger("continuacare.agent")
 logger.setLevel(logging.INFO)
@@ -123,8 +123,13 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(model="nova-3-medical"),
-        llm=anthropic.LLM(model="claude-sonnet-4-6"),
+        llm=openai.LLM(
+            model="anthropic/claude-sonnet-4-5",
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+        ),
         tts=elevenlabs.TTS(
+            api_key=os.getenv("ELEVENLABS_API_KEY"),
             voice_id=os.getenv("ELEVENLABS_VOICE_ID"),
             model="eleven_turbo_v2",
         ),
