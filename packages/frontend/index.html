@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>TCM Coordinator Worklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/tabler-icons.min.css"/>
+<style>
+  :root{
+    --bg:#F2F4F6;
+    --panel:#FFFFFF;
+    --ink:#16202B;
+    --ink-2:#516072;
+    --ink-3:#8593A3;
+    --line:#E2E7EC;
+    --line-2:#CFD6DD;
+    --slate:#2E4156;
+    --slate-deep:#1C2A38;
+    --accent:#2563A8;
+    --accent-bg:#E8F0F9;
+    --ok:#1F7A4D;
+    --ok-bg:#E4F2EA;
+    --warn:#9A6B12;
+    --warn-bg:#FBF0DA;
+    --due:#B23A2E;
+    --due-bg:#FBE8E5;
+    --radius:10px;
+    --mono:'IBM Plex Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:flex;flex-direction:column;height:100vh;min-height:640px}
+
+  /* ---- top bar ---- */
+  .topbar{
+    display:flex;align-items:center;gap:18px;
+    padding:0 20px;height:56px;
+    background:var(--slate-deep);color:#fff;flex-shrink:0;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:.2px}
+  .brand .mark{
+    width:26px;height:26px;border-radius:7px;background:#3D5A7D;
+    display:grid;place-items:center;font-size:15px;color:#CFE0F2;
+  }
+  .brand small{font-weight:400;color:#9FB2C7;font-size:12px;margin-left:2px}
+  .topbar .spacer{flex:1}
+  .topbar .who{display:flex;align-items:center;gap:9px;color:#C3D0DD;font-size:13px}
+  .topbar .who .av{
+    width:28px;height:28px;border-radius:50%;background:#3D5A7D;color:#DCE8F5;
+    display:grid;place-items:center;font-size:12px;font-weight:600;
+  }
+
+  /* ---- demo: simulate discharge ---- */
+  .simbtn{
+    display:flex;align-items:center;gap:7px;
+    background:#33506F;color:#EAF2FB;border:1px solid #47668A;
+    padding:7px 13px;border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:500;
+    cursor:pointer;transition:background .12s,border-color .12s;
+  }
+  .simbtn:hover{background:#3D5C7D;border-color:#5A7AA0}
+  .simbtn:active{transform:translateY(1px)}
+  .simbtn i{font-size:15px;color:#9FD0B4}
+  .simbtn .demotag{
+    font-size:9px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;
+    color:#9FB2C7;border:1px solid #47668A;border-radius:4px;padding:1px 4px;margin-left:1px;
+  }
+  .simbtn:disabled{opacity:.55;cursor:default}
+
+  /* live discharge button — green to distinguish from the demo simulate button */
+  #livebtn{background:#1A5C38;border-color:#247A4A;color:#E4F2EA}
+  #livebtn:hover{background:#1F6E43;border-color:#2E9458}
+  #livebtn i{color:#6DDBA0}
+  #livebtn .demotag{color:#A3D4B8;border-color:#2E7A4E}
+
+  /* demo reset button */
+  .resetbtn{
+    display:flex;align-items:center;gap:6px;
+    background:transparent;color:#8593A3;border:1px solid #3D5A7D;
+    padding:6px 11px;border-radius:8px;font-family:inherit;font-size:12px;font-weight:500;
+    cursor:pointer;transition:all .12s;
+  }
+  .resetbtn:hover{background:#2A3F57;color:#C3D0DD;border-color:#5A7AA0}
+  .resetbtn i{font-size:14px}
+
+  /* escalation pulse — draws the eye when a red card first appears */
+  @keyframes escPulse{
+    0%{box-shadow:0 0 0 0 rgba(178,58,46,.5)}
+    50%{box-shadow:0 0 0 8px rgba(178,58,46,0)}
+    100%{box-shadow:0 0 0 0 rgba(178,58,46,0)}
+  }
+  .row.esc-new{animation:escPulse 1s ease 3}
+
+  /* toast */
+  .toasts{position:fixed;top:66px;right:18px;z-index:50;display:flex;flex-direction:column;gap:9px;align-items:flex-end}
+  .toast{
+    display:flex;align-items:flex-start;gap:10px;background:var(--panel);
+    border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:9px;padding:11px 14px;box-shadow:0 8px 28px rgba(20,32,43,.16);
+    max-width:340px;animation:toastIn .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .toast.out{animation:toastOut .35s ease forwards}
+  .toast i{font-size:18px;color:var(--accent);margin-top:1px}
+  .toast.alert{border-left-color:var(--due)} .toast.alert i{color:var(--due)}
+  .toast .tt{font-size:13px;font-weight:600;color:var(--ink)}
+  .toast .tm{font-size:12px;color:var(--ink-2);margin-top:1px}
+  @keyframes toastIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+  @keyframes toastOut{to{opacity:0;transform:translateX(24px)}}
+
+  /* just-arrived row flash + dialing pulse */
+  .row.arrived{animation:arriveFlash 2.6s ease}
+  @keyframes arriveFlash{0%{background:var(--accent-bg);box-shadow:inset 3px 0 0 var(--accent)}70%{background:var(--accent-bg)}100%{background:var(--panel)}}
+  .dialing{display:inline-flex;align-items:center;gap:5px;color:var(--accent);font-weight:500}
+  .dialing .pdot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+  .liveband{
+    display:flex;align-items:center;gap:8px;padding:10px 16px;flex-shrink:0;
+    background:var(--accent-bg);border-bottom:1px solid #CFE0F2;color:#1B4A7A;font-size:12.5px;
+  }
+  .liveband i{font-size:15px}
+
+  /* ---- stat strip ---- */
+  .stats{
+    display:flex;gap:0;background:var(--panel);
+    border-bottom:1px solid var(--line);flex-shrink:0;
+  }
+  .stat{
+    padding:13px 20px;border-right:1px solid var(--line);
+    display:flex;flex-direction:column;gap:1px;min-width:128px;cursor:pointer;
+    transition:background .12s;
+  }
+  .stat:hover{background:#F7F9FB}
+  .stat .n{font-size:22px;font-weight:600;letter-spacing:-.4px;line-height:1.15}
+  .stat .l{font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.5px}
+  .stat.due .n{color:var(--due)}
+  .stat.warn .n{color:var(--warn)}
+  .stat.ok .n{color:var(--ok)}
+  .stat .sub{font-size:12px;color:var(--ink-2)}
+
+  /* ---- main split ---- */
+  .main{display:flex;flex:1;min-height:0}
+  .list{
+    width:46%;min-width:380px;max-width:560px;
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;background:var(--bg);
+  }
+  .list-head{
+    display:flex;align-items:center;gap:8px;padding:11px 16px;
+    border-bottom:1px solid var(--line);background:var(--panel);flex-shrink:0;
+  }
+  .needbar{
+    display:flex;align-items:center;gap:9px;padding:9px 16px;flex-shrink:0;
+    background:var(--due-bg);border-bottom:1px solid #F1CFC9;color:#7E3329;font-size:12.5px;
+  }
+  .needbar i{color:var(--due);font-size:15px}
+  .needbar b{color:var(--due);font-weight:600}
+  .needbar.calm{background:var(--ok-bg);border-bottom-color:#CBE6D6;color:#1B5E3A}
+  .needbar.calm i,.needbar.calm b{color:var(--ok)}
+  .seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:2px}
+  .seg button{
+    border:0;background:transparent;font:inherit;font-size:12.5px;color:var(--ink-2);
+    padding:4px 11px;border-radius:6px;cursor:pointer;white-space:nowrap;
+  }
+  .seg button.on{background:var(--panel);color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(20,32,43,.08)}
+  .list-head .spacer{flex:1}
+  .sortbtn{
+    border:1px solid var(--line);background:var(--panel);border-radius:8px;
+    font:inherit;font-size:12.5px;color:var(--ink-2);padding:5px 10px;cursor:pointer;
+    display:flex;align-items:center;gap:6px;
+  }
+  .rows{overflow-y:auto;flex:1;padding:8px}
+
+  .row{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:12px 13px;margin-bottom:8px;cursor:pointer;position:relative;
+    transition:border-color .12s, box-shadow .12s;
+    border-left-width:3px;
+  }
+  .row:hover{box-shadow:0 2px 8px rgba(20,32,43,.07)}
+  .row.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .row.k-due{border-left-color:var(--due)}
+  .row.k-warn{border-left-color:var(--warn)}
+  .row.k-ok{border-left-color:var(--ok)}
+  .row.k-idle{border-left-color:var(--line-2)}
+
+  /* ---- list row: data-spec fields ---- */
+  .cx{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.6px;padding:2px 7px;border-radius:5px;font-family:var(--mono)}
+  .cx.HIGH{background:var(--due-bg);color:var(--due)}
+  .cx.LOW{background:var(--accent-bg);color:var(--accent)}
+  .row-hosp{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);margin-top:3px}
+  .row-hosp i{font-size:14px;color:var(--ink-3)}
+  .row-status{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:13px}
+  .stat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .stat-dot.accent{background:var(--accent)}
+  .stat-dot.ok{background:var(--ok)}
+  .stat-dot.due{background:var(--due)}
+  .stat-dot.idle{background:var(--line-2)}
+  .stat-label{font-weight:500;color:var(--ink)}
+  .row-status .appt{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-2);font-family:var(--mono)}
+  .row-status .appt i{font-size:13px;color:var(--ink-3)}
+  .row-flags{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .fbadge{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:5px;display:inline-flex;align-items:center;gap:4px}
+  .fbadge i{font-size:12px}
+  .fbadge.na{background:var(--due-bg);color:var(--due)}
+  .fbadge.concern{background:var(--warn-bg);color:var(--warn)}
+  .attempts{font-size:11px;color:var(--accent);background:var(--accent-bg);padding:2px 7px;border-radius:5px;display:inline-flex;align-items:center;gap:4px;font-weight:500}
+  .attempts i{font-size:12px}
+  .vchk{font-size:11px;display:inline-flex;align-items:center;gap:4px;color:var(--ink-3)}
+  .vchk i{font-size:14px}
+  .vchk.on{color:var(--ok)}
+
+  /* ---- detail: meta strip, notes, transcript ---- */
+  .metastrip{display:flex;flex-wrap:wrap;gap:10px 22px;padding:13px 22px;border-bottom:1px solid var(--line)}
+  .metaitem{display:flex;flex-direction:column;gap:3px}
+  .metaitem .ml{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3)}
+  .metaitem .mv{font-size:13px;color:var(--ink);font-weight:500;display:flex;align-items:center;gap:6px}
+  .cxsel{font-family:inherit;font-size:12px;font-weight:600;padding:3px 8px;border:1px solid var(--line-2);border-radius:6px;background:var(--panel);color:var(--ink);cursor:pointer}
+  .vbox{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--ink-2);user-select:none;font-weight:500}
+  .vbox i{font-size:19px;color:var(--ink-3)}
+  .vbox.on{color:var(--ok)} .vbox.on i{color:var(--ok)}
+  .notes{font-size:13px;color:var(--ink);line-height:1.6;background:#FAFBFC;border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px}
+  .summary{font-size:13px;color:var(--ink);line-height:1.6;background:var(--accent-bg);border-radius:var(--radius);padding:12px 15px}
+  .tx{margin-top:11px}
+  .tx summary{cursor:pointer;font-size:12.5px;color:var(--accent);font-weight:500;list-style:none;display:inline-flex;align-items:center;gap:6px}
+  .tx summary::-webkit-details-marker{display:none}
+  .tx pre{white-space:pre-wrap;font-family:var(--mono);font-size:11.5px;color:var(--ink-2);background:#FAFBFC;border:1px solid var(--line);border-radius:8px;padding:13px;margin-top:9px;line-height:1.65;max-height:260px;overflow:auto}
+
+  .row-top{display:flex;align-items:baseline;gap:8px}
+  .row-name{font-weight:600;font-size:14.5px;letter-spacing:-.1px}
+  .row-meta{font-size:12px;color:var(--ink-3)}
+  .row .pri{
+    margin-left:auto;font-size:11px;font-weight:500;padding:1px 7px;border-radius:5px;
+    font-family:var(--mono);
+  }
+  .row .pri:empty{padding:0;background:transparent}
+  .pri.high{background:var(--due-bg);color:var(--due)}
+  .pri.mod{background:var(--accent-bg);color:var(--accent)}
+
+  .row-dx{font-size:12.5px;color:var(--ink-2);margin:5px 0 9px}
+  .row-foot{display:flex;align-items:center;gap:10px}
+  .stage{
+    display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);
+  }
+  .stage .dot{width:7px;height:7px;border-radius:50%;background:var(--line-2)}
+  .stage.act .dot{background:var(--accent)}
+
+  .clock{margin-left:auto;display:flex;align-items:center;gap:7px}
+  .clock .ring{width:30px;height:30px}
+  .clock .ctext{display:flex;flex-direction:column;line-height:1.15;text-align:right}
+  .clock .ctext .big{font-family:var(--mono);font-weight:500;font-size:13px}
+  .clock .ctext .sm{font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px}
+  .c-due .big{color:var(--due)}
+  .c-warn .big{color:var(--warn)}
+  .c-ok .big{color:var(--ok)}
+
+  /* ---- detail ---- */
+  .detail{flex:1;min-width:0;overflow-y:auto;background:var(--panel)}
+  .d-head{padding:18px 22px 14px;border-bottom:1px solid var(--line)}
+  .d-name{font-size:20px;font-weight:600;letter-spacing:-.3px;display:flex;align-items:center;gap:10px}
+  .d-sub{color:var(--ink-2);font-size:13px;margin-top:3px}
+  .d-sub b{color:var(--ink);font-weight:500}
+  .badge{
+    font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;font-family:var(--mono);
+    vertical-align:middle;
+  }
+  .badge.high{background:var(--due-bg);color:var(--due)}
+  .badge.mod{background:var(--accent-bg);color:var(--accent)}
+
+  .d-actions{display:flex;gap:9px;padding:14px 22px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .btn{
+    border:1px solid var(--line-2);background:var(--panel);border-radius:8px;
+    font:inherit;font-size:13px;font-weight:500;color:var(--ink);
+    padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:7px;
+    transition:background .12s,border-color .12s;
+  }
+  .btn:hover{background:#F7F9FB}
+  .btn.primary{background:var(--slate);color:#fff;border-color:var(--slate)}
+  .btn.primary:hover{background:var(--slate-deep)}
+  .btn.go{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.go:hover{filter:brightness(.94)}
+  .btn.danger{background:var(--due);color:#fff;border-color:var(--due)}
+  .btn.danger:hover{filter:brightness(.94)}
+
+  .d-body{padding:18px 22px 40px}
+  .sec{margin-bottom:24px}
+  .sec-h{
+    display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.6px;color:var(--ink-3);margin-bottom:11px;
+  }
+  .sec-h .ln{flex:1;height:1px;background:var(--line)}
+  .medstatus{font-size:10.5px;font-weight:500;padding:2px 8px;border-radius:5px;letter-spacing:.2px;text-transform:none}
+  .medstatus.fin{background:var(--ok-bg);color:var(--ok)}
+  .medstatus.prep{background:var(--warn-bg);color:var(--warn)}
+
+  /* compliance timeline */
+  .timeline{display:flex;flex-direction:column;gap:0}
+  .tl{display:flex;gap:13px;position:relative;padding-bottom:16px}
+  .tl:last-child{padding-bottom:0}
+  .tl .spine{display:flex;flex-direction:column;align-items:center}
+  .tl .node{
+    width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+    font-size:13px;flex-shrink:0;z-index:1;border:2px solid var(--panel);
+  }
+  .tl .line{width:2px;flex:1;background:var(--line);margin:2px 0}
+  .tl:last-child .line{display:none}
+  .tl.done .node{background:var(--ok-bg);color:var(--ok)}
+  .tl.now .node{background:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-bg)}
+  .tl.next .node{background:var(--bg);color:var(--ink-3);border-color:var(--line-2)}
+  .tl.miss .node{background:var(--due-bg);color:var(--due)}
+  .tl-main{flex:1;padding-top:1px}
+  .tl-t{font-weight:500;font-size:13.5px;display:flex;align-items:center;gap:8px}
+  .tl-d{font-size:12.5px;color:var(--ink-2);margin-top:2px}
+  .tl-when{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  .deadline{font-family:var(--mono);font-size:11px;padding:1px 7px;border-radius:5px}
+  .deadline.due{background:var(--due-bg);color:var(--due)}
+  .deadline.warn{background:var(--warn-bg);color:var(--warn)}
+
+  /* call summary card */
+  .callcard{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .callcard .ch{
+    display:flex;align-items:center;gap:9px;padding:11px 14px;background:#F7F9FB;
+    border-bottom:1px solid var(--line);
+  }
+  .callcard .ch .ci{
+    width:30px;height:30px;border-radius:8px;background:var(--accent-bg);color:var(--accent);
+    display:grid;place-items:center;font-size:16px;
+  }
+  .callcard .ch .ct{font-weight:500;font-size:13.5px}
+  .callcard .ch .cm{font-size:12px;color:var(--ink-3)}
+  .callcard .ch .tag{
+    margin-left:auto;font-size:11px;font-weight:500;padding:2px 9px;border-radius:6px;
+    background:var(--ok-bg);color:var(--ok);
+  }
+  .callcard .ch .tag.miss{background:var(--due-bg);color:var(--due)}
+  .callcard .cb{padding:13px 14px}
+  .kv{display:flex;gap:10px;padding:5px 0;font-size:13px;border-bottom:1px dashed var(--line)}
+  .kv:last-child{border-bottom:0}
+  .kv .k{color:var(--ink-2);width:140px;flex-shrink:0;display:flex;align-items:center;gap:7px}
+  .kv .v{color:var(--ink);flex:1}
+  .kv .v.flag{color:var(--due);font-weight:500}
+
+  /* escalation banner */
+  .esc{
+    display:flex;gap:12px;align-items:flex-start;
+    background:var(--due-bg);border:1px solid #F1CFC9;border-radius:var(--radius);
+    padding:13px 15px;margin-bottom:18px;
+  }
+  .esc .ei{color:var(--due);font-size:19px;margin-top:1px}
+  .esc .et{font-weight:600;font-size:13.5px;color:var(--due)}
+  .esc .ed{font-size:12.5px;color:#7E3329;margin-top:2px}
+  .esc .ea{margin-left:auto;display:flex;gap:7px;align-items:center}
+  .esc .ebtn{
+    border:1px solid var(--due);background:var(--panel);color:var(--due);
+    font:inherit;font-size:12px;font-weight:500;padding:5px 11px;border-radius:7px;cursor:pointer;
+  }
+  .esc .ebtn.solid{background:var(--due);color:#fff}
+
+  /* med rec table */
+  .meds{width:100%;border-collapse:collapse;font-size:13px}
+  .meds th{
+    text-align:left;font-weight:500;color:var(--ink-3);font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.4px;padding:0 10px 7px;border-bottom:1px solid var(--line);
+  }
+  .meds td{padding:8px 10px;border-bottom:1px solid var(--line)}
+  .meds tr:last-child td{border-bottom:0}
+  .chg{font-size:11px;font-weight:500;padding:1px 7px;border-radius:5px;font-family:var(--mono)}
+  .chg.new{background:var(--ok-bg);color:var(--ok)}
+  .chg.chgd{background:var(--warn-bg);color:var(--warn)}
+  .chg.stop{background:var(--due-bg);color:var(--due)}
+
+  /* claim panel */
+  .claim{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .claim .clh{display:flex;align-items:center;padding:12px 15px;background:#F7F9FB;border-bottom:1px solid var(--line)}
+  .claim .clh .code{font-family:var(--mono);font-weight:500;font-size:15px;color:var(--slate)}
+  .claim .clh .why{font-size:12px;color:var(--ink-2);margin-left:10px}
+  .claim .clh .dollar{margin-left:auto;font-weight:600;font-size:15px;color:var(--ok)}
+  .claim .windows{display:flex;gap:0;border-bottom:1px solid var(--line)}
+  .claim .win{flex:1;padding:9px 15px;display:flex;flex-direction:column;gap:2px}
+  .claim .win:first-child{border-right:1px solid var(--line)}
+  .claim .win .wl{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.4px}
+  .claim .win .wv{font-size:13px;color:var(--ink);font-weight:500}
+  .claim .win:first-child .wv{color:var(--accent)}
+  .claim .clb{padding:6px 15px 13px}
+  .check{display:flex;align-items:center;gap:9px;padding:7px 0;font-size:13px;border-bottom:1px dashed var(--line)}
+  .check:last-child{border-bottom:0}
+  .check i{font-size:16px}
+  .check .ok{color:var(--ok)}
+  .check .wait{color:var(--ink-3)}
+  .check .nm{color:var(--ink)}
+  .check .dt{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+
+  .hint{font-size:12px;color:var(--ink-3);margin-top:9px;display:flex;align-items:center;gap:6px}
+
+  @media (max-width:880px){
+    .list{width:100%;max-width:none;border-right:0;border-bottom:1px solid var(--line)}
+    .main{flex-direction:column;overflow-y:auto}
+    .detail{min-height:60vh}
+    .stat{min-width:100px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark"><i class="ti ti-heartbeat"></i></span>
+      Carelink TCM <small>· Northside Family Medicine</small>
+    </div>
+    <div class="spacer"></div>
+    <button class="simbtn" id="simbtn" title="Simulate an incoming ADT discharge event">
+      <i class="ti ti-broadcast"></i> Simulate discharge <span class="demotag">demo</span>
+    </button>
+    <button class="simbtn" id="livebtn" title="Create a real patient and dispatch the live voice agent">
+      <i class="ti ti-phone-outgoing"></i> Live discharge <span class="demotag">live</span>
+    </button>
+    <button class="resetbtn" id="resetbtn" title="Wipe all data and start fresh between demo runs">
+      <i class="ti ti-refresh"></i> Reset
+    </button>
+    <div class="who">
+      <span id="liveclock"></span>
+      <span class="av">DM</span>
+      <span>Dana Mejia, RN</span>
+    </div>
+  </div>
+  <div class="toasts" id="toasts"></div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="main">
+    <div class="list">
+      <div class="list-head">
+        <div class="seg" id="seg">
+          <button data-f="all" class="on">All open</button>
+          <button data-f="contact">Needs contact</button>
+          <button data-f="visit">Awaiting visit</button>
+          <button data-f="claim">Ready to bill</button>
+        </div>
+        <div class="spacer"></div>
+        <button class="sortbtn"><i class="ti ti-arrows-sort"></i> Soonest deadline</button>
+      </div>
+      <div class="rows" id="rows"></div>
+    </div>
+    <div class="detail" id="detail"></div>
+  </div>
+</div>
+
+<script>
+const NOW = new Date('2026-06-26T09:14:00');
+
+const PATIENTS = [
+  {
+    id:'p1', name:'Eleanor Whitfield', age:74, sex:'F', mrn:'44821',
+    dx:'Acute decompensated heart failure', facility:'St. Maran Regional',
+    discharge:'2026-06-25', complexity:'high', code:'99496', visitWin:7, fee:298,
+    stage:'contact', kind:'due', deadlineHrs:7, deadlineLabel:'contact due',
+    escalation:{t:'Reports new shortness of breath climbing stairs',d:'Voice agent flagged a possible red-flag symptom during the 2-day contact call. Routed to you for clinical review.'},
+    call:{when:'Jun 26, 8:05 AM', dur:'5m 47s', by:'Voice agent', outcome:'Reached patient',
+      rows:[
+        {k:'Discharge confirmed',v:'Yes — home with spouse'},
+        {k:'Medications',v:'Has furosemide; unsure about new dose timing',flag:false},
+        {k:'Red-flag screen',v:'New shortness of breath climbing stairs',flag:true},
+        {k:'Visit scheduling',v:'Declined to book until she speaks with a nurse',flag:true},
+        {k:'Follow-up needed',v:'Clinical callback before scheduling'}
+      ]},
+    timeline:[
+      {s:'done',t:'Discharge detected',d:'ADT feed · St. Maran Regional',w:'Jun 25, 4:02 PM'},
+      {s:'now',t:'Interactive contact',d:'Due within 2 business days',w:'Deadline Jun 29, 4:02 PM',dl:'7h of buffer used'},
+      {s:'next',t:'Medication reconciliation',d:'On or before visit date',w:''},
+      {s:'next',t:'Face-to-face visit',d:'High complexity · within 7 days',w:'Target by Jul 2'},
+      {s:'next',t:'Day-30 billing',d:'Date of service Jul 25',w:''}
+    ],
+    meds:[
+      {n:'Furosemide 40mg',f:'BID',c:'new'},
+      {n:'Lisinopril 10mg',f:'Daily',c:'chgd',note:'was 5mg'},
+      {n:'Metoprolol 25mg',f:'BID',c:''},
+      {n:'Ibuprofen 200mg',f:'PRN',c:'stop',note:'hold — renal'}
+    ],
+    claim:[
+      {k:'Discharge date',ok:true,d:'Jun 25'},
+      {k:'Interactive contact date',ok:false,d:'pending'},
+      {k:'Face-to-face visit date',ok:false,d:'pending'},
+      {k:'Medical decision-making',ok:false,d:'pending'}
+    ]
+  },
+  {
+    id:'p2', name:'Marcus Bell', age:68, sex:'M', mrn:'39014',
+    dx:'COPD exacerbation', facility:'St. Maran Regional',
+    discharge:'2026-06-24', complexity:'mod', code:'99495', visitWin:7, fee:220,
+    stage:'visit', kind:'warn', deadlineHrs:54, deadlineLabel:'visit window',
+    escalation:null,
+    call:{when:'Jun 25, 10:40 AM', dur:'6m 22s', by:'Voice agent', outcome:'Reached patient',
+      rows:[
+        {k:'Discharge confirmed',v:'Yes — home, with daughter'},
+        {k:'Medications',v:'Has all scripts filled; unsure on inhaler timing',flag:false},
+        {k:'Red-flag screen',v:'Negative'},
+        {k:'Visit scheduling',v:'Booked Jun 30, 2:30 PM with Dr. Osei'},
+        {k:'Follow-up needed',v:'Inhaler technique review at visit'}
+      ]},
+    timeline:[
+      {s:'done',t:'Discharge detected',d:'ADT feed · St. Maran Regional',w:'Jun 24, 1:15 PM'},
+      {s:'done',t:'Interactive contact',d:'Reached patient · voice agent',w:'Jun 25, 10:40 AM'},
+      {s:'done',t:'Medication reconciliation',d:'Completed by Dana M.',w:'Jun 25, 11:05 AM'},
+      {s:'now',t:'Face-to-face visit',d:'Booked Jun 30 · within 7 days',w:'Scheduled Jun 30, 2:30 PM',dl:'within window'},
+      {s:'next',t:'Day-30 billing',d:'Date of service Jul 24',w:''}
+    ],
+    meds:[
+      {n:'Prednisone taper',f:'5-day',c:'new'},
+      {n:'Albuterol inhaler',f:'PRN',c:''},
+      {n:'Tiotropium',f:'Daily',c:'chgd',note:'new device'},
+      {n:'Azithromycin 250mg',f:'Daily x3',c:'new'}
+    ],
+    claim:[
+      {k:'Discharge date',ok:true,d:'Jun 24'},
+      {k:'Interactive contact date',ok:true,d:'Jun 25'},
+      {k:'Face-to-face visit date',ok:false,d:'Jun 30 (booked)'},
+      {k:'Medical decision-making',ok:false,d:'at visit'}
+    ]
+  },
+  {
+    id:'p3', name:'Priya Raman', age:61, sex:'F', mrn:'41277',
+    dx:'Pneumonia', facility:'Lakeview Methodist',
+    discharge:'2026-05-24', complexity:'mod', code:'99495', visitWin:7, fee:220,
+    stage:'claim', kind:'ok', deadlineHrs:0, deadlineLabel:'ready to bill',
+    escalation:null,
+    call:{when:'May 25, 9:12 AM', dur:'4m 51s', by:'Voice agent', outcome:'Reached patient',
+      rows:[
+        {k:'Discharge confirmed',v:'Yes — home alone, independent'},
+        {k:'Medications',v:'All filled, no questions',flag:false},
+        {k:'Red-flag screen',v:'Negative'},
+        {k:'Visit scheduling',v:'Completed May 30 with Dr. Osei'},
+        {k:'Follow-up needed',v:'None outstanding'}
+      ]},
+    timeline:[
+      {s:'done',t:'Discharge detected',d:'HIE notification · Lakeview',w:'May 24, 2:40 PM'},
+      {s:'done',t:'Interactive contact',d:'Reached patient · voice agent',w:'May 25, 9:12 AM'},
+      {s:'done',t:'Medication reconciliation',d:'Completed by Dana M.',w:'May 25, 9:40 AM'},
+      {s:'done',t:'Face-to-face visit',d:'Moderate MDM · Dr. Osei',w:'May 30, 11:00 AM'},
+      {s:'now',t:'Day-30 billing',d:'All elements complete',w:'Date of service Jun 23',dl:'ready'}
+    ],
+    meds:[
+      {n:'Amoxicillin-clav',f:'BID x7',c:'new'},
+      {n:'Guaifenesin',f:'PRN',c:''},
+      {n:'Atorvastatin 20mg',f:'Daily',c:''}
+    ],
+    claim:[
+      {k:'Discharge date',ok:true,d:'May 24'},
+      {k:'Interactive contact date',ok:true,d:'May 25'},
+      {k:'Face-to-face visit date',ok:true,d:'May 30'},
+      {k:'Medical decision-making',ok:true,d:'Moderate'}
+    ]
+  },
+  {
+    id:'p4', name:'Theodore Nguyen', age:70, sex:'M', mrn:'45593',
+    dx:'Elective total knee arthroplasty', facility:'St. Maran Regional',
+    discharge:'2026-06-26', complexity:'mod', code:'99495', visitWin:7, fee:220,
+    stage:'contact', kind:'warn', deadlineHrs:46, deadlineLabel:'contact due',
+    escalation:null, call:null,
+    timeline:[
+      {s:'done',t:'Discharge detected',d:'ADT feed · St. Maran Regional',w:'Jun 26, 7:50 AM'},
+      {s:'now',t:'Interactive contact',d:'Outbound call scheduled 11:00 AM',w:'Deadline Jun 30, 7:50 AM',dl:'46h remaining'},
+      {s:'next',t:'Medication reconciliation',d:'On or before visit date',w:''},
+      {s:'next',t:'Face-to-face visit',d:'Moderate · within 7 days',w:'Target by Jul 3'},
+      {s:'next',t:'Day-30 billing',d:'Date of service Jul 26',w:''}
+    ],
+    meds:[
+      {n:'Oxycodone 5mg',f:'PRN',c:'new'},
+      {n:'Apixaban 2.5mg',f:'BID',c:'new'},
+      {n:'Acetaminophen 500mg',f:'QID',c:''}
+    ],
+    claim:[
+      {k:'Discharge date',ok:true,d:'Jun 26'},
+      {k:'Interactive contact date',ok:false,d:'scheduled'},
+      {k:'Face-to-face visit date',ok:false,d:'pending'},
+      {k:'Medical decision-making',ok:false,d:'pending'}
+    ]
+  },
+  {
+    id:'p5', name:'Gloria Okonkwo', age:79, sex:'F', mrn:'38800',
+    dx:'Acute myocardial infarction', facility:'Lakeview Methodist',
+    discharge:'2026-06-23', complexity:'high', code:'99496', visitWin:7, fee:298,
+    stage:'visit', kind:'due', deadlineHrs:30, deadlineLabel:'visit window',
+    escalation:null,
+    call:{when:'Jun 24, 8:30 AM', dur:'7m 08s', by:'Voice agent', outcome:'Reached caregiver',
+      rows:[
+        {k:'Discharge confirmed',v:'Yes — home with son (caregiver)'},
+        {k:'Medications',v:'Cannot afford ticagrelor copay',flag:true},
+        {k:'Red-flag screen',v:'Negative'},
+        {k:'Visit scheduling',v:'Needs visit by Jun 30 — not yet booked',flag:true},
+        {k:'Follow-up needed',v:'Medication assistance + urgent scheduling'}
+      ]},
+    timeline:[
+      {s:'done',t:'Discharge detected',d:'HIE notification · Lakeview',w:'Jun 23, 5:30 PM'},
+      {s:'done',t:'Interactive contact',d:'Reached caregiver · voice agent',w:'Jun 24, 8:30 AM'},
+      {s:'now',t:'Medication reconciliation',d:'Med-access issue flagged',w:'In progress',dl:'visit due Jun 30'},
+      {s:'next',t:'Face-to-face visit',d:'High complexity · within 7 days',w:'Not yet booked'},
+      {s:'next',t:'Day-30 billing',d:'Date of service Jul 23',w:''}
+    ],
+    meds:[
+      {n:'Ticagrelor 90mg',f:'BID',c:'new',note:'copay barrier'},
+      {n:'Aspirin 81mg',f:'Daily',c:'new'},
+      {n:'Atorvastatin 80mg',f:'Daily',c:'chgd',note:'was 20mg'},
+      {n:'Metoprolol 50mg',f:'BID',c:'new'}
+    ],
+    claim:[
+      {k:'Discharge date',ok:true,d:'Jun 23'},
+      {k:'Interactive contact date',ok:true,d:'Jun 24'},
+      {k:'Face-to-face visit date',ok:false,d:'pending'},
+      {k:'Medical decision-making',ok:false,d:'pending'}
+    ]
+  }
+];
+
+/* ---- per-patient detail content + derived spec fields ---- */
+const EXTRA = {
+  p1:{ attempts:1, verified:false, flagConcern:true, flagNoAnswer:false, appt:null,
+    dischargeNotes:`Admitted 6/22 for acute decompensated heart failure with volume overload. Diuresed with IV furosemide and transitioned to oral. Discharged home 6/25 on an adjusted diuretic regimen with daily weights and a low-sodium diet. Cardiology follow-up requested within one week. Patient lives with her spouse, who assists with medications.`,
+    summary:`Voice agent reached Ms. Whitfield at home with her spouse present. She confirmed the discharge and that she has her furosemide, but was unsure about the new dosing schedule. She reported new shortness of breath when climbing stairs and declined to book her follow-up visit until she speaks with a nurse. The red-flag symptom and scheduling hesitation were flagged for clinical review.`,
+    transcript:`Agent: Hi, is this Eleanor Whitfield? This is the care team from Northside Family Medicine, following up after your hospital stay.
+Patient: Yes, this is Eleanor.
+Agent: I'm glad I reached you. How have you been feeling since you got home on Wednesday?
+Patient: Mostly alright, but I get short of breath now going up the stairs. That's new for me.
+Agent: Thank you for telling me — I'll flag that for a nurse to review. Are you taking your water pill, the furosemide?
+Patient: I have it, but I'm not sure when I'm supposed to take the new dose.
+Agent: I'll make sure the team clarifies that. Could we book your follow-up visit this week?
+Patient: I'd rather wait until I talk to a nurse about the breathing first.
+Agent: Understood. A nurse will call you back today. Take care, Ms. Whitfield.` },
+  p2:{ attempts:1, verified:false, flagConcern:false, flagNoAnswer:false, appt:'Jun 30, 2:30 PM',
+    dischargeNotes:`Admitted for COPD exacerbation; treated with systemic steroids, bronchodilators, and a course of azithromycin. Discharged home 6/24 on a prednisone taper and an adjusted inhaler regimen. Smoking-cessation counseling provided. Pulmonary follow-up advised within two weeks.`,
+    summary:`Voice agent reached Mr. Bell at home with his daughter present. All prescriptions are filled. He was uncertain about inhaler timing, noted for a technique review at the visit. No red-flag symptoms reported. Follow-up booked for Jun 30 at 2:30 PM with Dr. Osei.`,
+    transcript:`Agent: Hello, is this Marcus Bell?
+Patient: Speaking.
+Agent: I'm calling from Northside Family Medicine to check in after your discharge on Tuesday. How are you doing?
+Patient: Breathing's better than it was. My daughter's been helping me out.
+Agent: Good to hear. Did you get all your prescriptions filled, including the prednisone taper?
+Patient: Yes, all of them. Though I'm a little unsure how often to use the new inhaler.
+Agent: I'll note that so the clinician can review the technique with you. Can we schedule that visit now?
+Patient: Sure, next week works.
+Agent: I have June 30th at 2:30 with Dr. Osei — does that work?
+Patient: That's fine.
+Agent: Booked. Take care, Mr. Bell.` },
+  p3:{ attempts:1, verified:true, flagConcern:false, flagNoAnswer:false, appt:'May 30, 11:00 AM',
+    dischargeNotes:`Admitted for community-acquired pneumonia; responded to IV antibiotics and transitioned to oral. Discharged home 5/24, independent in self-care. Advised to complete the full antibiotic course and obtain repeat imaging if symptoms persisted. No outstanding issues at discharge.`,
+    summary:`Voice agent reached Ms. Raman, who is independent at home. All medications filled with no questions, and she reported no red-flag symptoms. The follow-up visit was completed 5/30 with Dr. Osei. The episode is complete and fully documented.`,
+    transcript:`Agent: Hi, is this Priya Raman?
+Patient: Yes, hello.
+Agent: I'm following up from Northside Family Medicine after your pneumonia hospitalization. How are you feeling?
+Patient: Much better, thank you. Finished most of the antibiotics.
+Agent: That's great. Any new cough, fever, or shortness of breath?
+Patient: No, nothing like that.
+Agent: Wonderful. I see your follow-up is on the calendar for May 30th with Dr. Osei.
+Patient: Yes, I'll be there.
+Agent: Perfect. Thank you, Ms. Raman.` },
+  p4:{ attempts:0, verified:false, flagConcern:false, flagNoAnswer:false, appt:null,
+    dischargeNotes:`Status post elective total knee arthroplasty with an uncomplicated post-operative course. Discharged home 6/26 with DVT prophylaxis (apixaban) and a multimodal pain regimen. Outpatient physical therapy arranged. Surgical follow-up to be scheduled with orthopedics.`,
+    summary:`Outbound voice-agent call is scheduled for 11:00 AM today. No interactive contact has been completed yet; the 2-business-day clock is running.`,
+    transcript:`No transcript yet — the outreach call has not been placed.` },
+  p5:{ attempts:1, verified:false, flagConcern:true, flagNoAnswer:false, appt:null,
+    dischargeNotes:`Admitted for acute myocardial infarction; underwent percutaneous coronary intervention with stent placement. Discharged home 6/23 on dual antiplatelet therapy. Cardiac-rehab referral placed. Strict medication adherence emphasized. Patient lives with her son, who serves as caregiver.`,
+    summary:`Voice agent reached the patient's son (caregiver). The discharge was confirmed, but the caregiver reported the patient cannot afford the ticagrelor copay — a medication-access barrier. The follow-up visit is not yet booked and is needed by Jun 30. Flagged for medication assistance and urgent scheduling.`,
+    transcript:`Agent: Hello, I'm calling from Northside Family Medicine for Gloria Okonkwo.
+Son: This is her son — I help take care of her. She's resting right now.
+Agent: Thank you. I'm checking in after her heart attack and stent placement. How is she doing at home?
+Son: Okay, but there's a problem with one of the medications. The ticagrelor — the copay is more than we can manage.
+Agent: I'm sorry to hear that. I'll flag this so the team can help with medication assistance. Has her follow-up visit been scheduled?
+Son: Not yet. The hospital said she needs to be seen soon.
+Agent: She does — within the week. I'll mark this as urgent for our coordinator to book and to help with the medication cost.
+Son: Thank you, that would help a lot.
+Agent: Of course. Someone will be in touch shortly.` }
+};
+
+function autoSummary(p){
+  if(!p.call) return '';
+  const rows=(p.call.rows||[]).map(r=>`${r.k}: ${r.v}`).join('. ');
+  return `${p.call.outcome||'Outreach attempted'}. ${rows}.`;
+}
+function enrich(p){
+  if(p.gender===undefined) p.gender=p.sex;
+  if(p.hospital===undefined) p.hospital=p.facility;
+  if(p.reason===undefined) p.reason=p.dx;
+  if(p.complexityLevel===undefined) p.complexityLevel=(p.complexity==='high'?'HIGH':'LOW');
+  if(p.attempts===undefined) p.attempts=p.call?(p.call.attempts||1):0;
+  if(p.flagConcern===undefined) p.flagConcern=!!p.escalation;
+  if(p.flagNoAnswer===undefined) p.flagNoAnswer=!!(p.call&&p.call.missed);
+  if(p.verified===undefined) p.verified=false;
+  if(p.appt===undefined) p.appt=null;
+  if(p.summary===undefined) p.summary=p.call?autoSummary(p):'';
+  if(p.transcript===undefined) p.transcript='';
+  if(p.dischargeNotes===undefined) p.dischargeNotes='';
+}
+function statusLabel(p){
+  const s=deriveStatus(p);
+  if(s==='missed') return 'Outreach window missed';
+  return (STATUS_FLOW.find(x=>x.key===s)||{}).label||'';
+}
+function statusDot(p){
+  const s=deriveStatus(p);
+  return s==='missed'?'due':s==='billing'?'ok':s==='detected'?'idle':'accent';
+}
+PATIENTS.forEach(p=>{ Object.assign(p, EXTRA[p.id]||{}); enrich(p); });
+
+let filter='all', selId='p1';
+
+const STAGE_LABEL={contact:'Awaiting contact',visit:'Awaiting visit',claim:'Ready to bill'};
+const STAGE_ORDER=['contact','medrec','visit','claim'];
+
+/* ---- compliance-timeline statuses (renamed/reorganized) ---- */
+const STATUS_FLOW=[
+  {key:'detected',  label:'Discharge detected'},
+  {key:'outreach',  label:'Outreach in progress'},
+  {key:'scheduled', label:'Face-to-face visit scheduled'},
+  {key:'billing',   label:'Ready for billing'}
+];
+function tlFind(p,title){return (p.timeline||[]).find(x=>x.t===title)||{};}
+function deriveStatus(p){
+  if(p.status==='missed') return 'missed';                       // exception: 2-business-day window blown
+  if(p.stage==='claim') return 'billing';
+  if(p.appt) return 'scheduled';                                 // a face-to-face visit is actually booked
+  return 'outreach';
+}
+
+function buildSteps(p){
+  const cur=deriveStatus(p);
+  if(cur==='missed'){
+    const det=tlFind(p,'Discharge detected');
+    const att=(p.call&&p.call.attempts)?` ${p.call.attempts} documented attempts on file.`:'';
+    return [
+      {state:'done', label:'Discharge detected', d:det.d||'', w:det.w||''},
+      {state:'miss', label:'Outreach window missed', chip:'window lapsed',
+        d:'Patient not successfully contacted within 2 business days of discharge.'+att, w:p._missWhen||''},
+      {state:'next', label:'Face-to-face visit scheduled', d:'Not reached — interactive contact incomplete', muted:true},
+      {state:'next', label:'Ready for billing', d:'Blocked', muted:true}
+    ];
+  }
+  const idx=STATUS_FLOW.findIndex(s=>s.key===cur);
+  return STATUS_FLOW.map((s,i)=>{
+    const state = i<idx?'done' : i===idx?'now' : 'next';
+    let d='',w='';
+    if(s.key==='detected'){const it=tlFind(p,'Discharge detected'); d=it.d||''; w=it.w||'';}
+    else if(s.key==='outreach'){
+      const it=tlFind(p,'Interactive contact');
+      if(p._dialing){d='Voice agent is calling the patient now…'; w='';}
+      else {d=it.d||'Voice agent outreach'; w=it.w||'';}
+    }
+    else if(s.key==='scheduled'){const it=tlFind(p,'Face-to-face visit'); d=it.d||''; w=it.w||'';}
+    else if(s.key==='billing'){const it=tlFind(p,'Day-30 billing'); d=it.d||''; w=it.w||'';}
+    let chip='';
+    if(state==='now'){
+      const it = s.key==='outreach'?tlFind(p,'Interactive contact')
+               : s.key==='scheduled'?tlFind(p,'Face-to-face visit')
+               : s.key==='billing'?tlFind(p,'Day-30 billing'):{};
+      chip = it.dl || ((p.stage!=='claim'&&p.deadlineHrs)?`${p.deadlineHrs}h · ${p.deadlineLabel}`:'');
+    }
+    return {state,label:s.label,d,w,chip};
+  });
+}
+
+function rowStatus(p){
+  if(deriveStatus(p)==='missed') return '<span style="color:var(--due);font-weight:500">Outreach window missed</span>';
+  if(p._dialing) return '<span class="dialing"><span class="pdot"></span>Agent dialing…</span>';
+  if(p.stage==='claim') return 'Ready to bill';
+  if(p.escalation) return 'Review the escalation';
+  if(p.call && p.stage==='contact') return 'Agent called — review';
+  if(p.stage==='contact') return 'Agent call scheduled';
+  if(p.stage==='visit') return 'Awaiting visit';
+  return STAGE_LABEL[p.stage];
+}
+
+function ring(pct,kind){
+  const r=12, c=2*Math.PI*r, off=c*(1-pct);
+  const col=kind==='due'?'var(--due)':kind==='warn'?'var(--warn)':'var(--ok)';
+  return `<svg class="ring" viewBox="0 0 30 30"><circle cx="15" cy="15" r="${r}" fill="none" stroke="var(--line)" stroke-width="3"/><circle cx="15" cy="15" r="${r}" fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 15 15)"/></svg>`;
+}
+
+function clockText(p){
+  if(deriveStatus(p)==='missed') return {big:'Missed',sm:'outreach window',k:'due',pct:1};
+  if(p.stage==='claim') return {big:'Complete',sm:'day-30 reached',k:'ok',pct:1};
+  if(p.deadlineHrs>=24){const d=Math.round(p.deadlineHrs/24*10)/10;return {big:p.deadlineHrs+'h',sm:p.deadlineLabel,k:p.kind,pct:Math.max(.12,1-p.deadlineHrs/96)};}
+  return {big:p.deadlineHrs+'h',sm:p.deadlineLabel,k:p.kind,pct:Math.max(.12,1-p.deadlineHrs/48)};
+}
+
+function matchesFilter(p){
+  if(filter==='all') return true;
+  if(filter==='contact') return p.stage==='contact';
+  if(filter==='visit') return p.stage==='visit';
+  if(filter==='claim') return p.stage==='claim';
+  return true;
+}
+
+function renderNeedbar(){
+  const el=document.getElementById('needbar');
+  const atRisk=PATIENTS.filter(p=>p.kind==='due'&&p.stage!=='claim')
+    .sort((a,b)=>a.deadlineHrs-b.deadlineHrs);
+  const escs=PATIENTS.filter(p=>p.escalation).length;
+  if(!atRisk.length && !escs){
+    el.className='needbar calm';
+    el.innerHTML=`<i class="ti ti-circle-check"></i> Every open episode is inside its compliance window. Nothing at risk right now.`;
+    return;
+  }
+  el.className='needbar';
+  const top=atRisk[0];
+  const parts=[];
+  if(top) parts.push(`<b>${top.name.split(' ')[0]} ${top.name.split(' ')[1]||''}</b> — ${top.deadlineLabel} in <b>${top.deadlineHrs}h</b>`);
+  const extra=atRisk.length-1;
+  const tail=[];
+  if(extra>0) tail.push(`${extra} more clock${extra>1?'s':''} at risk`);
+  if(escs>0) tail.push(`${escs} escalation${escs>1?'s':''} to handle`);
+  el.innerHTML=`<i class="ti ti-alarm"></i> Needs you now: ${parts.join('')}${tail.length?` · ${tail.join(' · ')}`:''}`;
+}
+
+function renderStats(){
+  const due=PATIENTS.filter(p=>p.kind==='due').length;
+  const contact=PATIENTS.filter(p=>p.stage==='contact').length;
+  const visit=PATIENTS.filter(p=>p.stage==='visit').length;
+  const ready=PATIENTS.filter(p=>p.stage==='claim').length;
+  const esc=PATIENTS.filter(p=>p.escalation).length;
+  const revenue=PATIENTS.filter(p=>p.stage==='claim').reduce((a,p)=>a+p.fee,0);
+  document.getElementById('stats').innerHTML=`
+    <div class="stat due" data-f="all"><span class="n">${due}</span><span class="l">Clock at risk</span></div>
+    <div class="stat" data-f="contact"><span class="n">${contact}</span><span class="l">Needs contact</span></div>
+    <div class="stat" data-f="visit"><span class="n">${visit}</span><span class="l">Awaiting visit</span></div>
+    <div class="stat warn" data-f="all"><span class="n">${esc}</span><span class="l">Escalations</span></div>
+    <div class="stat ok" data-f="claim"><span class="n">${ready}</span><span class="l">Ready to bill</span></div>`;
+  document.querySelectorAll('.stat').forEach(s=>s.onclick=()=>{filter=s.dataset.f;syncSeg();renderRows();});
+}
+
+function syncSeg(){
+  document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.f===filter));
+}
+
+function renderRows(){
+  const list=PATIENTS.filter(matchesFilter)
+    .sort((a,b)=>{
+      const rank={due:0,warn:1,ok:2,idle:3};
+      if(rank[a.kind]!==rank[b.kind])return rank[a.kind]-rank[b.kind];
+      return a.deadlineHrs-b.deadlineHrs;
+    });
+  const el=document.getElementById('rows');
+  if(!list.length){el.innerHTML=`<div style="padding:40px 20px;text-align:center;color:var(--ink-3);font-size:13px">No episodes in this view.<br>Discharges appear here the moment an ADT or HIE notification arrives.</div>`;return;}
+  el.innerHTML=list.map(p=>{
+    const ct=clockText(p);
+    const st=deriveStatus(p);
+    const attTxt = p.attempts>0?`${p.attempts} attempt${p.attempts>1?'s':''}`:'Outreach queued';
+    return `<div class="row k-${p.kind} ${p.id===selId?'sel':''} ${p._new?'arrived':''}" data-id="${p.id}">
+      <div class="row-top">
+        <span class="row-name">${p.name}</span>
+        <span class="row-meta">${p.age} · ${p.gender}</span>
+        <span class="cx ${p.complexityLevel}">${p.complexityLevel}</span>
+      </div>
+      <div class="row-hosp"><i class="ti ti-building-hospital"></i> ${p.hospital}</div>
+      <div class="row-status">
+        <span class="stat-dot ${statusDot(p)}"></span>
+        <span class="stat-label">${statusLabel(p)}</span>
+        ${p.appt?`<span class="appt"><i class="ti ti-calendar-event"></i> ${p.appt}</span>`:''}
+      </div>
+      <div class="row-foot">
+        <div class="row-flags">
+          ${st==='outreach'?`<span class="attempts"><i class="ti ti-phone-calling"></i> ${p._dialing?'Calling…':attTxt}</span>`:''}
+          ${p.flagNoAnswer?`<span class="fbadge na"><i class="ti ti-phone-off"></i> No answer</span>`:''}
+          ${p.flagConcern?`<span class="fbadge concern"><i class="ti ti-alert-triangle"></i> Possible concern</span>`:''}
+          ${p.call?`<span class="vchk ${p.verified?'on':''}"><i class="ti ${p.verified?'ti-checkbox':'ti-square'}"></i> ${p.verified?'Verified':'Unverified'}</span>`:''}
+        </div>
+        <div class="clock c-${ct.k}">
+          ${ring(ct.pct,ct.k)}
+          <span class="ctext"><span class="big">${ct.big}</span><span class="sm">${ct.sm}</span></span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.row').forEach(r=>r.onclick=()=>{selId=r.dataset.id;renderRows();renderDetail();});
+}
+
+function renderDetail(){
+  const p=PATIENTS.find(x=>x.id===selId);
+  const el=document.getElementById('detail');
+  if(!p){el.innerHTML='';return;}
+
+  const esc=p.escalation?`
+    <div class="esc">
+      <i class="ti ti-alert-triangle ei"></i>
+      <div>
+        <div class="et">Escalation — clinical review needed</div>
+        <div class="ed">${p.escalation.t}. ${p.escalation.d}</div>
+      </div>
+      <div class="ea">
+        <button class="ebtn" onclick="sendPrompt('Draft a callback plan for ${p.name.split(' ')[0]} based on the flagged symptom.')">Plan callback ↗</button>
+        <button class="ebtn solid">Acknowledge</button>
+      </div>
+    </div>`:'';
+
+  const steps=buildSteps(p);
+  const timeline=`
+    <div class="sec">
+      <div class="sec-h"><i class="ti ti-clock-hour-4"></i> Compliance timeline<span class="ln"></span></div>
+      <div class="timeline">
+        ${steps.map(t=>`
+          <div class="tl ${t.state}">
+            <div class="spine">
+              <div class="node">${t.state==='done'?'<i class="ti ti-check"></i>':t.state==='now'?'<i class="ti ti-player-play"></i>':t.state==='miss'?'<i class="ti ti-x"></i>':''}</div>
+              <div class="line"></div>
+            </div>
+            <div class="tl-main"${t.muted?' style="opacity:.5"':''}>
+              <div class="tl-t">${t.label}${t.chip?`<span class="deadline ${t.state==='miss'||p.kind==='due'?'due':'warn'}">${t.chip}</span>`:''}</div>
+              ${t.d?`<div class="tl-d">${t.d}</div>`:''}
+              ${t.w?`<div class="tl-when">${t.w}</div>`:''}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  const callRec=p.call?`
+    <div class="sec">
+      <div class="sec-h"><i class="ti ti-phone"></i> Call record — for your review<span class="ln"></span></div>
+      <div class="callcard">
+        <div class="ch">
+          <span class="ci"><i class="ti ti-device-mobile-message"></i></span>
+          <div>
+            <div class="ct">${p.call.outcome} · ${p.call.by}</div>
+            <div class="cm">${p.call.when} · ${p.call.dur}${p.attempts>1?` · ${p.attempts} attempts`:''}</div>
+          </div>
+          <span class="tag ${p.call.missed?'miss':''}">${p.call.tag||'Contact met'}</span>
+        </div>
+        <div class="cb">
+          ${p.summary?`<div class="summary"><b style="font-weight:600">Summary</b> &nbsp;${p.summary}</div>`:''}
+          <div style="margin-top:11px">
+            ${p.call.rows.map(r=>`<div class="kv"><span class="k">${r.k}</span><span class="v ${r.flag?'flag':''}">${r.flag?'<i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-right:4px"></i>':''}${r.v}</span></div>`).join('')}
+          </div>
+          ${p.transcript?`<details class="tx"><summary><i class="ti ti-file-text"></i> View raw transcript</summary><pre>${p.transcript.replace(/</g,'&lt;')}</pre></details>`:''}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:11px;gap:12px;flex-wrap:wrap">
+        <div class="vbox ${p.verified?'on':''}" onclick="toggleVerified('${p.id}')">
+          <i class="ti ${p.verified?'ti-checkbox':'ti-square'}"></i> ${p.verified?'Call record verified':'Mark call record verified'}
+        </div>
+        <span class="hint" style="margin:0;border:0;padding:0;background:none"><i class="ti ti-info-circle"></i> Verifying logs that you reviewed the summary against the transcript.</span>
+      </div>
+    </div>`:`
+    <div class="sec">
+      <div class="sec-h"><i class="ti ti-phone"></i> Call record${p._dialing?' — in progress':''}<span class="ln"></span></div>
+      <div style="border:1px dashed var(--line-2);border-radius:var(--radius);padding:18px;text-align:center;color:var(--ink-2);font-size:13px">
+        ${p._dialing
+          ? '<div class="dialing" style="justify-content:center;font-size:13px"><span class="pdot"></span><span class="pdot" style="animation-delay:.2s"></span><span class="pdot" style="animation-delay:.4s"></span>&nbsp;Voice agent is calling the patient now…</div><div style="margin-top:7px;color:var(--ink-3);font-size:12px">The summary and transcript will appear here for your review the moment the call completes.</div>'
+          : '<i class="ti ti-phone-outgoing" style="font-size:22px;color:var(--ink-3);display:block;margin-bottom:7px"></i>'+(p.stage==='contact'&&p.deadlineLabel.includes('contact')?'Voice agent call is scheduled. The 2-business-day contact clock is running — the summary and transcript will appear here once the agent reaches the patient.':'No outreach yet.')}
+      </div>
+    </div>`;
+
+  const notesSec=`
+    <div class="sec">
+      <div class="sec-h"><i class="ti ti-notes"></i> Discharge notes<span class="ln"></span></div>
+      <div class="notes">${p.dischargeNotes||'No discharge notes available yet.'}</div>
+    </div>`;
+
+  const medFinalized = p.stage==='claim' || (p.timeline.some(t=>t.t==='Medication reconciliation'&&t.s==='done'));
+  const meds=`
+    <div class="sec">
+      <div class="sec-h"><i class="ti ti-pill"></i> Medication reconciliation<span class="ln"></span><span class="medstatus ${medFinalized?'fin':'prep'}">${medFinalized?'Finalized by clinician':'Prepped — awaiting clinician'}</span></div>
+      <table class="meds">
+        <thead><tr><th>Medication</th><th>Frequency</th><th style="text-align:right">Change</th></tr></thead>
+        <tbody>
+        ${p.meds.map(m=>`<tr><td>${m.n}${m.note?` <span style="color:var(--ink-3);font-size:12px">(${m.note})</span>`:''}</td><td>${m.f}</td><td style="text-align:right">${m.c?`<span class="chg ${m.c}">${m.c==='new'?'new':m.c==='chgd'?'changed':'stop'}</span>`:'<span style="color:var(--ink-3)">—</span>'}</td></tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="hint"><i class="ti ti-info-circle"></i> ${medFinalized?'Reconciliation completed on or before the visit date, per TCM requirements.':'Coordinator prepares the list from discharge data; the clinician reviews and finalizes on or before the visit.'}</div>
+    </div>`;
+
+  const allOk=p.claim.every(c=>c.ok);
+  const billWindow = p.complexity==='high' ? 7 : 14;
+  const claim=`
+    <div class="sec">
+      <div class="sec-h"><i class="ti ti-file-invoice"></i> Claim readiness<span class="ln"></span></div>
+      <div class="claim">
+        <div class="clh">
+          <span class="code">${p.code}</span>
+          <span class="why">${p.complexity==='high'?'High MDM':'Moderate MDM'}</span>
+          <span class="dollar">$${p.fee}</span>
+        </div>
+        <div class="windows">
+          <div class="win"><span class="wl">Practice target</span><span class="wv">Visit within 7 days</span></div>
+          <div class="win"><span class="wl">Billing window (${p.code})</span><span class="wv">Visit within ${billWindow} days</span></div>
+        </div>
+        <div class="clb">
+          ${p.claim.map(c=>`<div class="check"><i class="ti ${c.ok?'ti-circle-check ok':'ti-circle-dashed wait'}"></i><span class="nm">${c.k}</span><span class="dt">${c.d}</span></div>`).join('')}
+        </div>
+      </div>
+      <div class="hint"><i class="ti ti-info-circle"></i> ${allOk?'All four required elements documented. Date of service is day 30.':`Practice contacts and aims to see every patient within 7 days. ${p.complexity==='high'?'High-complexity 99496 also requires the visit within 7 days to bill.':'Moderate-complexity 99495 allows up to 14 days to bill, but the 7-day target still applies.'}`}</div>
+    </div>`;
+
+  let actions;
+  if(p.stage==='claim'){
+    actions = `<button class="btn primary"><i class="ti ti-file-export"></i> Generate claim packet</button>
+       <button class="btn go" onclick="sendPrompt('Generate the clinician note and TCM documentation packet for ${p.name}.')">Draft clinician note ↗</button>
+       <button class="btn"><i class="ti ti-external-link"></i> Open in EHR</button>`;
+  } else if(p.escalation){
+    actions = `<button class="btn danger"><i class="ti ti-user-up"></i> Route to clinician</button>
+       <button class="btn go" onclick="sendPrompt('Draft a callback plan for ${p.name.split(' ')[0]} based on the flagged symptom.')">Plan callback ↗</button>
+       <button class="btn"><i class="ti ti-check"></i> Resolve escalation</button>`;
+  } else if(p.stage==='visit'){
+    actions = `<button class="btn primary" onclick="setVerified('${p.id}',true)"><i class="ti ti-checks"></i> Approve outreach</button>
+       <button class="btn go" onclick="sendPrompt('Prep the medication reconciliation summary for ${p.name} for the clinician to finalize.')">Prep med rec for clinician ↗</button>
+       <button class="btn"><i class="ti ti-calendar-check"></i> Confirm visit booked</button>`;
+  } else if(p.call){
+    actions = `<button class="btn primary" onclick="setVerified('${p.id}',true)"><i class="ti ti-checks"></i> Approve outreach</button>
+       <button class="btn"><i class="ti ti-phone-outgoing"></i> Add a manual call</button>
+       <button class="btn"><i class="ti ti-calendar-plus"></i> Book visit</button>`;
+  } else {
+    actions = `<button class="btn"><i class="ti ti-player-play"></i> Send agent now</button>
+       <button class="btn"><i class="ti ti-clock-edit"></i> Reschedule call</button>
+       <button class="btn"><i class="ti ti-phone-outgoing"></i> Call myself instead</button>`;
+  }
+
+  el.innerHTML=`
+    <div class="d-head">
+      <div class="d-name">${p.name}</div>
+      <div class="d-sub">${p.age} · ${p.gender} &nbsp;·&nbsp; <b>${p.reason}</b> &nbsp;·&nbsp; discharged ${fmtDate(p.discharge)} from ${p.hospital}</div>
+    </div>
+    <div class="metastrip">
+      <div class="metaitem"><span class="ml">Status</span><span class="mv"><span class="stat-dot ${statusDot(p)}"></span>${statusLabel(p)}</span></div>
+      <div class="metaitem"><span class="ml">Complexity</span><span class="mv">
+        <select class="cxsel" onchange="setComplexity('${p.id}',this.value)">
+          <option value="HIGH" ${p.complexityLevel==='HIGH'?'selected':''}>HIGH</option>
+          <option value="LOW" ${p.complexityLevel==='LOW'?'selected':''}>LOW</option>
+        </select></span></div>
+      <div class="metaitem"><span class="ml">Appointment</span><span class="mv">${p.appt?`<i class="ti ti-calendar-event" style="font-size:15px;color:var(--ink-3)"></i> ${p.appt}`:'<span style="color:var(--ink-3);font-weight:400">Not scheduled</span>'}</span></div>
+      <div class="metaitem"><span class="ml">Attempts</span><span class="mv">${p.attempts}${deriveStatus(p)==='outreach'?' <span style="color:var(--accent);font-weight:400;font-size:11px">· live</span>':''}</span></div>
+      <div class="metaitem"><span class="ml">Verified</span><span class="mv"><span class="vbox ${p.verified?'on':''}" onclick="toggleVerified('${p.id}')"><i class="ti ${p.verified?'ti-checkbox':'ti-square'}"></i> ${p.verified?'Yes':'No'}</span></span></div>
+      ${(p.flagNoAnswer||p.flagConcern)?`<div class="metaitem"><span class="ml">Flags</span><span class="mv" style="gap:6px">${p.flagNoAnswer?'<span class="fbadge na"><i class="ti ti-phone-off"></i> No answer</span>':''}${p.flagConcern?'<span class="fbadge concern"><i class="ti ti-alert-triangle"></i> Possible concern</span>':''}</span></div>`:''}
+    </div>
+    <div class="d-actions">${actions}</div>
+    <div class="d-body">
+      ${esc}
+      ${timeline}
+      ${notesSec}
+      ${meds}
+      ${callRec}
+      ${claim}
+    </div>`;
+}
+
+function fmtDate(s){const d=new Date(s+'T12:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}
+
+function toggleVerified(id){const p=PATIENTS.find(x=>x.id===id);if(!p)return;p.verified=!p.verified;renderRows();renderDetail();}
+function setVerified(id,v){const p=PATIENTS.find(x=>x.id===id);if(!p)return;p.verified=v;renderRows();renderDetail();}
+function setComplexity(id,val){
+  const p=PATIENTS.find(x=>x.id===id);if(!p)return;
+  p.complexityLevel=val;
+  if(val==='HIGH'){p.complexity='high';p.code='99496';p.fee=298;}
+  else{p.complexity='mod';p.code='99495';p.fee=220;}
+  renderRows();renderStats();renderDetail();
+}
+
+document.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{filter=b.dataset.f;syncSeg();renderRows();});
+
+/* ---------- DEMO: live discharge inject ---------- */
+const INCOMING = [
+  { id:'rt', name:'Robert Tran', age:72, sex:'M', mrn:'50231',
+    dx:'Acute decompensated heart failure', facility:'St. Maran Regional',
+    complexity:'high', code:'99496', fee:298, visitWin:7,
+    contactHrs:16, visitHrs:70, scenario:'clean', src:'ADT feed · St. Maran Regional',
+    meds:[{n:'Furosemide 40mg',f:'BID',c:'new'},{n:'Carvedilol 6.25mg',f:'BID',c:'new'},{n:'Lisinopril 10mg',f:'Daily',c:''}],
+    call:{when:'Jun 26, 9:18 AM',dur:'5m 12s',by:'Voice agent',outcome:'Reached patient',
+      rows:[{k:'Discharge confirmed',v:'Yes — home with wife'},{k:'Medications',v:'All scripts filled; understands new diuretic'},{k:'Red-flag screen',v:'Negative'},{k:'Visit scheduling',v:'Booked Jul 1, 10:00 AM with Dr. Osei'},{k:'Follow-up needed',v:'None outstanding'}]},
+    booked:'Jul 1, 10:00 AM',
+    notes:`Admitted for acute decompensated heart failure with volume overload; diuresed and transitioned to oral therapy. Discharged home 6/26 on an adjusted diuretic regimen with daily weights advised. Lives with spouse. Cardiology follow-up requested within one week.`,
+    summary:`Voice agent reached Mr. Tran at home with his wife present. Discharge confirmed, all prescriptions filled, and he understands the new diuretic. No red-flag symptoms. Follow-up booked for Jul 1 at 10:00 AM with Dr. Osei.`,
+    transcript:`Agent: Hello, is this Robert Tran? I'm from Northside Family Medicine, following up after your hospital stay.\nPatient: Yes, that's me.\nAgent: How are you feeling since you got home today?\nPatient: Tired, but okay. My wife is helping me keep track of everything.\nAgent: Good. Did you fill all your prescriptions, including the new water pill?\nPatient: Yes, picked them up on the way home.\nAgent: Any chest pain, severe shortness of breath, or rapid weight gain?\nPatient: No, none of that.\nAgent: Let's get your follow-up booked. July 1st at 10 with Dr. Osei?\nPatient: That works.\nAgent: Booked. Take care, Mr. Tran.` },
+  { id:'jw', name:'James Whitaker', age:69, sex:'M', mrn:'50244',
+    dx:'COPD exacerbation', facility:'Lakeview Methodist',
+    complexity:'high', code:'99496', fee:298, visitWin:7,
+    contactHrs:14, scenario:'escalation', src:'HIE notification · Lakeview',
+    meds:[{n:'Prednisone taper',f:'5-day',c:'new'},{n:'Albuterol inhaler',f:'PRN',c:'new',note:'no refill on hand'},{n:'Tiotropium',f:'Daily',c:''}],
+    call:{when:'Jun 26, 9:20 AM',dur:'6m 39s',by:'Voice agent',outcome:'Reached patient',
+      rows:[{k:'Discharge confirmed',v:'Yes — home alone'},{k:'Medications',v:'Out of rescue inhaler, no refill',flag:true},{k:'Red-flag screen',v:'Increasing breathlessness and a fever since discharge',flag:true},{k:'Visit scheduling',v:'Not booked — wants to speak to a nurse first',flag:true},{k:'Follow-up needed',v:'Urgent clinical callback'}]},
+    escalation:{t:'Increasing breathlessness and fever since discharge',d:'Voice agent flagged a possible red-flag symptom and a rescue-inhaler access barrier during the 2-day contact call. Routed to you for clinical review.'},
+    notes:`Admitted for COPD exacerbation; treated with steroids and bronchodilators. Discharged home 6/26 alone on a prednisone taper and inhaler regimen. Pulmonary follow-up advised within two weeks.`,
+    summary:`Voice agent reached Mr. Whitaker, who is home alone. He is out of his rescue inhaler with no refill on hand, and reported increasing breathlessness and a fever since discharge. He has not booked a visit and wants to speak with a nurse first. Flagged for clinical review and medication access.`,
+    transcript:`Agent: Hi, is this James Whitaker? This is Northside Family Medicine following up after your discharge.\nPatient: Yeah. I'm not doing so great, honestly.\nAgent: I'm sorry to hear that. What's going on?\nPatient: I'm more short of breath than when I left, and I think I've got a fever.\nAgent: Thank you for telling me — I'm going to flag this for a nurse right away. Do you have your rescue inhaler?\nPatient: That's the thing, I ran out and haven't been able to get the refill.\nAgent: I'll make sure someone helps with that today. I'd like to get you seen quickly — can I have a nurse call you to arrange it?\nPatient: Yeah, I'd rather talk to a nurse before booking anything.\nAgent: Understood. Someone will call you shortly, Mr. Whitaker.` },
+  { id:'sa', name:'Sofia Alvarez', age:66, sex:'F', mrn:'50260',
+    dx:'Community-acquired pneumonia', facility:'St. Maran Regional',
+    complexity:'mod', code:'99495', fee:220, visitWin:7,
+    contactHrs:18, visitHrs:80, scenario:'clean', src:'ADT feed · St. Maran Regional',
+    meds:[{n:'Amoxicillin-clav',f:'BID x7',c:'new'},{n:'Benzonatate',f:'TID',c:'new'},{n:'Lisinopril 10mg',f:'Daily',c:''}],
+    call:{when:'Jun 26, 9:22 AM',dur:'4m 33s',by:'Voice agent',outcome:'Reached patient',
+      rows:[{k:'Discharge confirmed',v:'Yes — home with daughter'},{k:'Medications',v:'All filled, no questions'},{k:'Red-flag screen',v:'Negative'},{k:'Visit scheduling',v:'Booked Jul 2, 1:30 PM with Dr. Reyes'},{k:'Follow-up needed',v:'None outstanding'}]},
+    booked:'Jul 2, 1:30 PM',
+    notes:`Admitted for community-acquired pneumonia; responded to IV antibiotics and transitioned to oral. Discharged home 6/26 with her daughter. Advised to complete the antibiotic course. No outstanding issues at discharge.`,
+    summary:`Voice agent reached Ms. Alvarez at home with her daughter present. All medications filled with no questions, and no red-flag symptoms reported. Follow-up booked for Jul 2 at 1:30 PM with Dr. Reyes.`,
+    transcript:`Agent: Hello, is this Sofia Alvarez?\nPatient: Yes, speaking.\nAgent: I'm calling from Northside Family Medicine to check in after your pneumonia hospitalization. How are you feeling?\nPatient: Better, thank you. My daughter is staying with me for a few days.\nAgent: That's great. Did you get your antibiotics filled?\nPatient: Yes, all set, no questions.\nAgent: Any new fever, worsening cough, or trouble breathing?\nPatient: No, I feel like I'm improving.\nAgent: Wonderful. Let's book your follow-up — July 2nd at 1:30 with Dr. Reyes?\nPatient: Perfect.\nAgent: Booked. Take care, Ms. Alvarez.` },
+  { id:'wb', name:'Walter Brennan', age:77, sex:'M', mrn:'50275',
+    dx:'Heart failure exacerbation', facility:'Lakeview Methodist',
+    complexity:'high', code:'99496', fee:298, visitWin:7,
+    contactHrs:2, scenario:'missed', src:'HIE notification · Lakeview',
+    meds:[{n:'Furosemide 80mg',f:'BID',c:'new'},{n:'Spironolactone 25mg',f:'Daily',c:'new'},{n:'Metoprolol 50mg',f:'BID',c:''}],
+    call:{when:'Jun 26, 9:24 AM',dur:'—',by:'Voice agent',outcome:'Not reached · window lapsed',missed:true,tag:'Window missed',attempts:3,
+      rows:[{k:'Attempt 1',v:'No answer — voicemail left (Jun 27)',flag:true},{k:'Attempt 2',v:'No answer — line busy (Jun 30, AM)',flag:true},{k:'Attempt 3',v:'No answer — no voicemail set up (Jun 30, PM)',flag:true},{k:'Caregiver contact',v:'No alternate number on file',flag:true},{k:'Status',v:'2 business-day window closed without interactive contact',flag:true}]},
+    notes:`Admitted for heart failure exacerbation; diuresed and discharged home 6/26. Discharged on furosemide and spironolactone with daily weights advised. No caregiver or alternate phone number documented at discharge.`,
+    summary:`Voice agent made three documented outreach attempts across the 2-business-day window without reaching the patient or a caregiver. No alternate number is on file. The interactive-contact window closed without successful contact.`,
+    transcript:`Attempt 1 — Jun 27, 10:12 AM: No answer. Voicemail left with callback number.\nAttempt 2 — Jun 30, 9:05 AM: No answer. Line busy.\nAttempt 3 — Jun 30, 2:40 PM: No answer. Voicemail box not set up.\nNo alternate or caregiver number on file. 2 business-day interactive-contact window closed.` } ];
+let incIdx=0, simBusy=false;
+
+function toast(title,msg,kind){
+  const wrap=document.getElementById('toasts');
+  const t=document.createElement('div');
+  t.className='toast'+(kind==='alert'?' alert':'');
+  t.innerHTML=`<i class="ti ${kind==='alert'?'ti-alert-triangle':'ti-broadcast'}"></i><div><div class="tt">${title}</div><div class="tm">${msg}</div></div>`;
+  wrap.appendChild(t);
+  setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),350);},4400);
+}
+
+function injectDischarge(){
+  if(simBusy) return;
+  const tmpl=INCOMING[incIdx%INCOMING.length]; incIdx++;
+  const id=tmpl.id+'_'+Date.now().toString().slice(-4);
+  const p={
+    id, name:tmpl.name, age:tmpl.age, sex:tmpl.sex, mrn:tmpl.mrn,
+    dx:tmpl.dx, facility:tmpl.facility, discharge:'2026-06-26',
+    complexity:tmpl.complexity, code:tmpl.code, visitWin:tmpl.visitWin, fee:tmpl.fee,
+    stage:'contact', kind:'due', deadlineHrs:tmpl.contactHrs, deadlineLabel:'contact due',
+    escalation:null, call:null, _dialing:false, _tmpl:tmpl, _new:true,
+    timeline:[
+      {s:'done',t:'Discharge detected',d:tmpl.src,w:'Jun 26, 9:14 AM'},
+      {s:'now',t:'Interactive contact',d:'Voice agent dispatched',w:'Deadline Jun 30, 9:14 AM',dl:tmpl.contactHrs+'h remaining'},
+      {s:'next',t:'Medication reconciliation',d:'On or before visit date',w:''},
+      {s:'next',t:'Face-to-face visit',d:(tmpl.complexity==='high'?'High':'Moderate')+' complexity · within 7 days',w:''},
+      {s:'next',t:'Day-30 billing',d:'Date of service Jul 26',w:''}
+    ],
+    meds:tmpl.meds,
+    dischargeNotes:tmpl.notes||'', summary:'', transcript:'',
+    attempts:0, appt:null, flagNoAnswer:false, flagConcern:false, verified:false,
+    claim:[
+      {k:'Discharge date',ok:true,d:'Jun 26'},
+      {k:'Interactive contact date',ok:false,d:'pending'},
+      {k:'Face-to-face visit date',ok:false,d:'pending'},
+      {k:'Medical decision-making',ok:false,d:'pending'}
+    ]
+  };
+  enrich(p);
+  PATIENTS.unshift(p);
+  selId=id; filter='all'; syncSeg();
+  renderStats(); renderRows(); renderDetail();
+  toast('New discharge detected', `${tmpl.name} · ${tmpl.dx} — ${tmpl.src.split(' · ')[0]}. Day-0 clock started; voice agent dispatched.`);
+  setTimeout(()=>{ delete p._new; renderRows(); }, 2800);
+
+  simBusy=true;
+  const sb=document.getElementById('simbtn'); sb.disabled=true;
+  setTimeout(()=>{ p._dialing=true; p.attempts=1; renderRows(); if(selId===id) renderDetail(); }, 1100);
+  setTimeout(()=>{ resolveAgent(p); }, 4600);
+}
+
+function resolveAgent(p){
+  const tmpl=p._tmpl;
+  p._dialing=false; p.call=tmpl.call;
+  p.summary=tmpl.summary||autoSummary(p); p.transcript=tmpl.transcript||'';
+  p.claim[1]={k:'Interactive contact date',ok:true,d:'Jun 26'};
+  p.timeline[1]={s:'done',t:'Interactive contact',d:'Reached patient · voice agent',w:tmpl.call.when};
+  if(tmpl.scenario==='escalation'){
+    p.escalation=tmpl.escalation; p.flagConcern=true; p.attempts=1;
+    p.deadlineLabel='clinical review'; p.kind='due'; p.deadlineHrs=tmpl.contactHrs;
+    p.timeline[2]={s:'now',t:'Medication reconciliation',d:'On hold — clinical review needed',w:'',dl:'review'};
+    toast('Escalation raised', `${tmpl.name}: ${tmpl.escalation.t.toLowerCase()}. Routed for clinical review.`, 'alert');
+  } else if(tmpl.scenario==='missed'){
+    p.status='missed'; p.kind='idle'; p.deadlineHrs=0; p.deadlineLabel='window missed';
+    p.flagNoAnswer=true; p.attempts=tmpl.call.attempts||3;
+    p._missWhen='Window closed Jun 30, 9:14 AM';
+    p.timeline[1]={s:'miss',t:'Interactive contact',d:'No interactive contact within 2 business days',w:tmpl.call.when};
+    p.claim[1]={k:'Interactive contact date',ok:false,d:'window missed'};
+    toast('Outreach window missed', `${tmpl.name}: 2 business-day contact window closed after documented attempts.`, 'alert');
+  } else {
+    p.stage='visit'; p.kind='warn'; p.deadlineHrs=tmpl.visitHrs; p.deadlineLabel='visit window';
+    p.attempts=1; p.appt=tmpl.booked||null;
+    p.timeline[2]={s:'done',t:'Medication reconciliation',d:'Prepped from discharge data',w:tmpl.call.when};
+    p.timeline[3]={s:'now',t:'Face-to-face visit',d:'Booked '+(tmpl.booked||'')+' · within 7 days',w:'Scheduled '+(tmpl.booked||''),dl:'within window'};
+    p.claim[2]={k:'Face-to-face visit date',ok:false,d:'booked'};
+    toast('Outreach complete', `${tmpl.name}: agent reached the patient and booked the visit. Ready for your review.`);
+  }
+  renderStats(); renderRows(); if(selId===p.id) renderDetail();
+  simBusy=false; document.getElementById('simbtn').disabled=false;
+}
+
+document.getElementById('simbtn').onclick=injectDischarge;
+
+renderStats();
+syncSeg();
+renderRows();
+renderDetail();
+
+// ---------------------------------------------------------------------------
+// Live backend integration
+// ---------------------------------------------------------------------------
+
+const API_URL = window.API_URL || 'http://localhost:8000';
+
+// Demo patient — edit phone to match the real device before the demo
+const DEMO_PATIENT_CONFIG = {
+  name:        'Jane Smith',
+  age:         67,
+  phone:       '+12125550100',  // ← replace with real phone number before demo
+  diagnosis:   'Heart Failure',
+  medications: ['Furosemide 40mg', 'Lisinopril 10mg', 'Metoprolol 25mg'],
+};
+
+const DEMO_DISCHARGE_NOTES = `Patient is a 67-year-old female admitted for acute decompensated heart failure with volume overload. Treated with IV diuresis and transitioned to oral furosemide. Discharged home in stable condition. Lives with spouse. Daily weights advised. Sodium-restricted diet counseled. Cardiology follow-up requested within one week. High-risk for readmission given prior CHF admissions.`;
+
+// Maps episode_id -> local patient object so escalations can find their card
+const LIVE_EPISODES = {};
+const SEEN_ESCALATIONS = new Set();
+const DEMO_CALL_DELAY_SECONDS = 15;
+
+async function liveDischarge() {
+  const lb = document.getElementById('livebtn');
+  lb.disabled = true;
+  lb.innerHTML = '<i class="ti ti-loader-2"></i> Creating…';
+
+  try {
+    // 1. Create patient
+    const ptResp = await fetch(`${API_URL}/patients`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(DEMO_PATIENT_CONFIG),
+    });
+    if (!ptResp.ok) throw new Error(`Patient create failed: ${ptResp.status}`);
+    const pt = await ptResp.json();
+
+    // 2. Create episode (discharge event — triggers Claude triage + auto-call)
+    const epResp = await fetch(`${API_URL}/episodes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patient_id:      pt.id,
+        discharge_date:  new Date().toISOString(),
+        discharge_notes: DEMO_DISCHARGE_NOTES,
+      }),
+    });
+    if (!epResp.ok) throw new Error(`Episode create failed: ${epResp.status}`);
+    const ep = await epResp.json();
+
+    // 3. Inject a live patient card into the UI
+    const localId = 'live_' + ep.id.slice(0, 8);
+    const p = {
+      id: localId, _episodeId: ep.id, _patientId: pt.id,
+      name: pt.name, age: pt.age, sex: 'F', mrn: pt.id.slice(0, 6).toUpperCase(),
+      dx: pt.diagnosis, facility: 'Demo Hospital',
+      discharge: new Date().toISOString().slice(0, 10),
+      complexity: 'high', code: '99496', visitWin: 7, fee: 298,
+      stage: 'contact', kind: 'due', deadlineHrs: 48, deadlineLabel: 'contact due',
+      escalation: null, call: null, _dialing: false, _new: true,
+      meds: (pt.medications || []).map(m => ({ n: m, f: 'Daily', c: '' })),
+      dischargeNotes: DEMO_DISCHARGE_NOTES,
+      summary: '', transcript: '',
+      attempts: 0, appt: null, flagNoAnswer: false, flagConcern: false, verified: false,
+      timeline: [
+        { s: 'done', t: 'Discharge detected',       d: 'Live API event',                              w: new Date().toLocaleTimeString() },
+        { s: 'now',  t: 'Interactive contact',       d: 'Voice agent dispatched — phone call incoming', w: 'Deadline in 2 business days', dl: '48h remaining' },
+        { s: 'next', t: 'Medication reconciliation', d: 'On or before visit date',                     w: '' },
+        { s: 'next', t: 'Face-to-face visit',        d: 'High complexity · within 7 days',             w: '' },
+        { s: 'next', t: 'Day-30 billing',            d: 'Date of service Day+30',                      w: '' },
+      ],
+      claim: [
+        { k: 'Discharge date',            ok: true,  d: new Date().toLocaleDateString() },
+        { k: 'Interactive contact date',  ok: false, d: 'pending' },
+        { k: 'Face-to-face visit date',   ok: false, d: 'pending' },
+        { k: 'Medical decision-making',   ok: false, d: 'pending' },
+      ],
+    };
+    enrich(p);
+    LIVE_EPISODES[ep.id] = p;
+    PATIENTS.unshift(p);
+    selId = localId; filter = 'all'; syncSeg();
+    renderStats(); renderRows(); renderDetail();
+    toast('Live discharge created', `${pt.name} · ${pt.diagnosis} — agent call dispatched in ~${DEMO_CALL_DELAY_SECONDS}s.`);
+    setTimeout(() => { delete p._new; renderRows(); }, 2800);
+
+    // Show dialing indicator after a short pause
+    setTimeout(() => {
+      p._dialing = true; p.attempts = 1;
+      renderRows(); if (selId === localId) renderDetail();
+    }, 2000);
+
+  } catch (err) {
+    toast('Live discharge failed', err.message, 'alert');
+  } finally {
+    lb.disabled = false;
+    lb.innerHTML = '<i class="ti ti-phone-outgoing"></i> Live discharge <span class="demotag">live</span>';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Escalation polling — GET /escalations/open every 3 s
+// ---------------------------------------------------------------------------
+
+async function pollEscalations() {
+  try {
+    const resp = await fetch(`${API_URL}/escalations/open`);
+    if (!resp.ok) return;
+    const escalations = await resp.json();
+    for (const esc of escalations) {
+      if (SEEN_ESCALATIONS.has(esc.id)) continue;
+      SEEN_ESCALATIONS.add(esc.id);
+      handleLiveEscalation(esc);
+    }
+  } catch (_) { /* backend unreachable — silently skip */ }
+}
+
+function handleLiveEscalation(esc) {
+  // Find the patient card for this episode, or create a placeholder
+  let p = LIVE_EPISODES[esc.episode_id];
+  if (!p) {
+    const localId = 'esc_' + esc.id.slice(0, 8);
+    p = {
+      id: localId, _episodeId: esc.episode_id, _patientId: null,
+      name: 'Live Patient', age: null, sex: '', mrn: '',
+      dx: 'See escalation', facility: '', discharge: new Date().toISOString().slice(0, 10),
+      complexity: 'high', code: '99496', visitWin: 7, fee: 298,
+      stage: 'contact', kind: 'due', deadlineHrs: 48, deadlineLabel: 'clinical review',
+      escalation: null, call: null, meds: [], dischargeNotes: '',
+      summary: '', transcript: '', attempts: 1,
+      appt: null, flagNoAnswer: false, flagConcern: false, verified: false,
+      timeline: [], claim: [],
+    };
+    enrich(p);
+    LIVE_EPISODES[esc.episode_id] = p;
+    PATIENTS.unshift(p);
+  }
+
+  p.escalation = {
+    t: esc.reason,
+    d: `${esc.severity === 'urgent' ? 'URGENT — ' : ''}Escalation recorded at ${new Date(esc.created_at).toLocaleTimeString()}. Route to clinical team immediately.`,
+  };
+  p.flagConcern = true;
+  p.kind = 'due';
+  p._dialing = false;
+
+  selId = p.id; filter = 'all'; syncSeg();
+  renderStats(); renderRows(); renderDetail();
+  toast(
+    esc.severity === 'urgent' ? 'URGENT escalation' : 'Escalation raised',
+    `${p.name}: ${esc.reason}`,
+    'alert'
+  );
+
+  // pulse the row red 3 times to draw the eye
+  requestAnimationFrame(() => {
+    const rowEl = document.querySelector(`.row[data-id="${p.id}"]`);
+    if (rowEl) {
+      rowEl.classList.add('esc-new');
+      setTimeout(() => rowEl.classList.remove('esc-new'), 3500);
+    }
+  });
+}
+
+setInterval(pollEscalations, 3000);
+document.getElementById('livebtn').onclick = liveDischarge;
+
+// ---------------------------------------------------------------------------
+// Live clock
+// ---------------------------------------------------------------------------
+
+function updateClock() {
+  const now = new Date();
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const day = days[now.getDay()];
+  const mon = months[now.getMonth()];
+  const date = now.getDate();
+  const hrs = now.getHours();
+  const mins = String(now.getMinutes()).padStart(2, '0');
+  const ampm = hrs >= 12 ? 'PM' : 'AM';
+  const h = hrs % 12 || 12;
+  document.getElementById('liveclock').textContent = `${day}, ${mon} ${date} · ${h}:${mins} ${ampm}`;
+}
+updateClock();
+setInterval(updateClock, 10000);
+
+// ---------------------------------------------------------------------------
+// Demo reset
+// ---------------------------------------------------------------------------
+
+document.getElementById('resetbtn').onclick = async () => {
+  const btn = document.getElementById('resetbtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2"></i> Resetting…';
+  try {
+    const resp = await fetch(`${API_URL}/demo/reset`);
+    if (resp.ok) {
+      const data = await resp.json();
+      toast('Demo reset', `Cleared ${data.deleted.patients} patient(s) and ${data.deleted.escalations} escalation(s). Ready for the next run.`);
+      // clear live tracking state
+      Object.keys(LIVE_EPISODES).forEach(k => delete LIVE_EPISODES[k]);
+      SEEN_ESCALATIONS.clear();
+    } else {
+      toast('Reset failed', `Backend returned ${resp.status} — is DEMO_MODE=true?`, 'alert');
+    }
+  } catch (e) {
+    toast('Reset failed', 'Backend not reachable.', 'alert');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-refresh"></i> Reset';
+  }
+};
+
+
+</script>
+</body>
+</html>
