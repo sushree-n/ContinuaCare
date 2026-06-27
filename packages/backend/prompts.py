@@ -74,26 +74,80 @@ medication doses, unable to schedule visit, or expresses significant anxiety.
 
 BILLING_DOC_PROMPT = """
 You are a medical billing assistant for a primary care practice.
-Generate a CMS-compliant Transitional Care Management billing document.
+Generate a CMS-compliant Transitional Care Management (TCM) billing document
+that can be reviewed, edited, and submitted for claim reimbursement.
 
-Patient: {patient_name}, {age}yo
-Diagnosis: {diagnosis}
-Discharge date: {discharge_date}
-Face-to-face visit date: {face_to_face_date}
-Call summary: {call_summary}
-Medications reconciled: {med_rec_completed}
+Episode data:
+- Patient: {patient_name}, {age}yo
+- Diagnosis: {diagnosis}
+- Discharge date: {discharge_date}
+- Contact deadline (2 business days): {contact_deadline}
+- Face-to-face visit date: {face_to_face_date}
+- Visit deadline: {visit_deadline}
+- MDM complexity: {complexity}
+- CPT code: {cpt_code}
+- Date of service (Day 30): {billing_date}
+- Medications reconciled: {med_rec_completed}
+- Outreach log: {outreach_log}
+- Escalations: {escalations}
 
 Return this exact JSON structure. Raw JSON only, no markdown:
 {{
-  "cpt_code": "99496",
-  "complexity_level": "high",
-  "date_of_service": "YYYY-MM-DD",
-  "required_elements": {{
-    "interactive_contact": "description of contact within 2 business days",
-    "medication_reconciliation": "description of med rec completion",
-    "face_to_face_visit": "description of visit within required window",
-    "care_coordination": "description of coordination activities"
+  "claim": {{
+    "cpt_code": "99496",
+    "date_of_service": "YYYY-MM-DD",
+    "complexity_level": "high",
+    "ready_to_submit": true,
+    "blocking_flags": []
   }},
-  "clinician_note": "draft SOAP-style note for clinician review and signature"
+  "patient_summary": {{
+    "name": "{patient_name}",
+    "age": {age},
+    "diagnosis": "{diagnosis}",
+    "discharge_date": "{discharge_date}",
+    "medications_reconciled": true
+  }},
+  "cms_required_elements": {{
+    "interactive_contact": {{
+      "completed": true,
+      "date": "YYYY-MM-DD",
+      "description": "Interactive contact made within 2 business days of discharge via phone call. Patient confirmed receipt of discharge instructions and medication list."
+    }},
+    "medication_reconciliation": {{
+      "completed": true,
+      "date": "YYYY-MM-DD",
+      "description": "Medication reconciliation completed. Discharge medications reviewed and confirmed with patient."
+    }},
+    "face_to_face_visit": {{
+      "completed": true,
+      "date": "YYYY-MM-DD",
+      "description": "Face-to-face visit completed within required window per CPT complexity level."
+    }},
+    "care_coordination": {{
+      "completed": true,
+      "description": "Care coordination activities performed including follow-up scheduling, specialist referral review, and patient education."
+    }}
+  }},
+  "outreach_summary": {{
+    "total_attempts": 1,
+    "successful_contact": true,
+    "contact_date": "YYYY-MM-DD",
+    "call_outcomes": [
+      {{
+        "attempt": 1,
+        "date": "YYYY-MM-DD",
+        "outcome": "Completed",
+        "summary": "brief outcome summary"
+      }}
+    ],
+    "escalations": []
+  }},
+  "clinician_note": "SUBJECTIVE:\\n[Patient status in plain language]\\n\\nOBJECTIVE:\\n[Findings from call and any reported vitals or symptoms]\\n\\nASSESSMENT:\\n[Clinical assessment of patient status post-discharge]\\n\\nPLAN:\\n[Follow-up plan, medications confirmed, next visit scheduled]\\n\\nTCM ATTESTATION:\\nI personally performed or supervised the Transitional Care Management services for this patient during the 30-day post-discharge period. All four required elements of TCM were completed as documented above."
 }}
+
+Rules:
+- Set ready_to_submit to false and add a blocking_flags entry if any CMS required element is missing.
+- Use actual dates from the episode data where available, otherwise use "pending".
+- The clinician_note must be a complete draft ready for physician review and signature.
+- blocking_flags examples: "Face-to-face visit not yet completed", "Interactive contact date missing".
 """

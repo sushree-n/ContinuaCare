@@ -4,11 +4,18 @@ from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timedelta
+import asyncio
+import os
 import uuid
 
+import httpx
+
 from database import get_db
-from models import TCMEpisode, Patient, EpisodeState, ComplexityLevel
+from models import TCMEpisode, Patient, Call, CallSchedule, EpisodeState, ComplexityLevel
 from services.triage import run_triage
+
+BACKEND_URL = "http://localhost:8000"
+CALL_DELAY_SECONDS = int(os.environ.get("DEMO_CALL_DELAY_SECONDS", 15))
 
 router = APIRouter(prefix="/episodes", tags=["episodes"])
 
@@ -89,8 +96,18 @@ async def _run_triage_and_update(episode_id: str, patient: Patient, discharge_no
         except Exception as e:
             # don't crash the background task — leave episode in DISCHARGE_DETECTED
             print(f"[triage] failed for episode {episode_id}: {e}")
+            return
 
         await db.commit()
+
+    # triage done — wait then auto-trigger the call
+    await asyncio.sleep(CALL_DELAY_SECONDS)
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(f"{BACKEND_URL}/calls/trigger/{episode_id}")
+        print(f"[auto-trigger] call triggered for episode {episode_id}")
+    except Exception as e:
+        print(f"[auto-trigger] failed for episode {episode_id}: {e}")
 
 
 @router.post("", response_model=EpisodeResponse, status_code=201)
@@ -131,3 +148,74 @@ async def get_episode(episode_id: str, db: AsyncSession = Depends(get_db)):
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
     return episode
+
+
+@router.patch("/{episode_id}/state")
+async def update_episode_state(
+    episode_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Manual state transition — for demo control and care coordinator overrides."""
+    result = await db.execute(select(TCMEpisode).where(TCMEpisode.id == episode_id))
+    episode = result.scalar_one_or_none()
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+
+    state_str = body.get("state")
+    try:
+        episode.state = EpisodeState(state_str)
+    except ValueError:
+        valid = [s.value for s in EpisodeState]
+        raise HTTPException(status_code=400, detail=f"Invalid state. Must be one of: {valid}")
+
+    await db.commit()
+    return {"id": episode_id, "state": episode.state.value}
+
+
+@router.get("/{episode_id}/schedule")
+async def get_episode_schedule(episode_id: str, db: AsyncSession = Depends(get_db)):
+    """Returns all calls and scheduled call slots for the calendar view."""
+    ep_result = await db.execute(select(TCMEpisode).where(TCMEpisode.id == episode_id))
+    episode = ep_result.scalar_one_or_none()
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+
+    calls_result = await db.execute(
+        select(Call).where(Call.episode_id == episode_id).order_by(Call.started_at)
+    )
+    calls = calls_result.scalars().all()
+
+    schedules_result = await db.execute(
+        select(CallSchedule).where(CallSchedule.episode_id == episode_id).order_by(CallSchedule.scheduled_for)
+    )
+    schedules = schedules_result.scalars().all()
+
+    return {
+        "episode_id": episode_id,
+        "discharge_date": episode.discharge_date.isoformat() if episode.discharge_date else None,
+        "contact_deadline": episode.contact_deadline.isoformat() if episode.contact_deadline else None,
+        "visit_deadline": episode.visit_deadline.isoformat() if episode.visit_deadline else None,
+        "billing_date": episode.billing_date.isoformat() if episode.billing_date else None,
+        "face_to_face_date": episode.face_to_face_date.isoformat() if episode.face_to_face_date else None,
+        "calls": [
+            {
+                "id": c.id,
+                "attempt_number": c.attempt_number,
+                "status": c.status.value if c.status else None,
+                "started_at": c.started_at.isoformat() if c.started_at else None,
+                "ended_at": c.ended_at.isoformat() if c.ended_at else None,
+                "summary": c.summary,
+            }
+            for c in calls
+        ],
+        "scheduled_calls": [
+            {
+                "id": s.id,
+                "scheduled_for": s.scheduled_for.isoformat(),
+                "day_number": s.day_number,
+                "completed": s.completed,
+            }
+            for s in schedules
+        ],
+    }

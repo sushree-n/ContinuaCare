@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 
 from database import get_db
-from models import Patient
+from models import Patient, TCMEpisode
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -58,3 +58,25 @@ async def get_patient(patient_id: str, db: AsyncSession = Depends(get_db)):
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     return patient
+
+
+@router.get("/{patient_id}/episode")
+async def get_patient_active_episode(patient_id: str, db: AsyncSession = Depends(get_db)):
+    """Returns the most recent active episode for a patient — used by the agent at call start."""
+    result = await db.execute(
+        select(TCMEpisode)
+        .where(TCMEpisode.patient_id == patient_id)
+        .order_by(TCMEpisode.created_at.desc())
+    )
+    episode = result.scalars().first()
+    if not episode:
+        raise HTTPException(status_code=404, detail="No episode found for patient")
+
+    return {
+        "id": episode.id,
+        "state": episode.state.value if episode.state else None,
+        "discharge_date": episode.discharge_date.isoformat() if episode.discharge_date else None,
+        "complexity": episode.complexity.value if episode.complexity else None,
+        "visit_window_days": episode.visit_window_days,
+        "cpt_code": episode.cpt_code,
+    }

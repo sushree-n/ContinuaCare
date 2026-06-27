@@ -50,7 +50,9 @@ logger = logging.getLogger("continuacare.agent")
 logger.setLevel(logging.INFO)
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
-DEFAULT_PATIENT_ID = "demo-patient-001"
+DEFAULT_PATIENT_ID = "232d80d2-9ce2-45ee-b2a9-ae843019f38e"
+DEFAULT_EPISODE_ID = "90c838cd-bdc9-4ce7-bddb-e5d8230524e0"
+DEFAULT_CALL_ID = "9521eb60-b1f6-437a-a4d0-9712476818a0"
 
 # Stored outbound SIP trunk (ST_xxxx) created with `lk sip outbound create`.
 # Used to dial the patient when the agent is dispatched for an outbound call.
@@ -87,27 +89,29 @@ server.setup_fnc = prewarm
 # ---------------------------------------------------------------------------
 
 async def fetch_patient(patient_id: str) -> dict:
-    """Fetch the patient record the agent needs for this call.
-
-    MOCK for now — returns a hardcoded record (only the name matters at this
-    stage). Later this will be a real call, roughly:
-
-        async with httpx.AsyncClient() as client:
+    """Fetch the patient + active episode data the agent needs for this call."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(f"{BACKEND_URL}/patients/{patient_id}")
             resp.raise_for_status()
-            return resp.json()
+            patient = resp.json()
 
-    `prompts.py` reads every field with `.get(..., default)`, so a name-only dict
-    is enough to drive a coherent call until more fields (age, diagnosis,
-    medications, discharge_date, complexity) are wired in.
-    """
-    logger.info("MOCK fetch_patient(%s) — would GET %s/patients/%s",
-                patient_id, BACKEND_URL, patient_id)
-    return {
-        "id": patient_id,
-        "name": "Jane Smith",
-        # TODO: age, diagnosis, medications, discharge_date, complexity, ...
-    }
+        # also pull the active episode for discharge_date + complexity
+        async with httpx.AsyncClient(timeout=10) as client:
+            ep_resp = await client.get(f"{BACKEND_URL}/patients/{patient_id}/episode")
+            if ep_resp.status_code == 200:
+                episode = ep_resp.json()
+                patient["discharge_date"] = episode.get("discharge_date")
+                patient["complexity"] = episode.get("complexity")
+
+        logger.info("fetch_patient(%s) — name=%s diagnosis=%s",
+                    patient_id, patient.get("name"), patient.get("diagnosis"))
+        return patient
+
+    except Exception as e:
+        logger.error("fetch_patient(%s) failed: %s — using fallback", patient_id, e)
+        return {"id": patient_id, "name": "the patient"}
 
 
 # ---------------------------------------------------------------------------
@@ -143,27 +147,31 @@ async def entrypoint(ctx: JobContext):
     ctx.log_context_fields = {"room": ctx.room.name}
     await ctx.connect()
 
-    # When the agent is dispatched to place an outbound call, the dispatch
-    # metadata carries the patient's phone number (E.164) and patient id, e.g.
-    #   lk dispatch create --new-room --agent-name continuacare-agent \
-    #       --metadata '{"phone_number": "+15105550123", "patient_id": "..."}'
-    # When run in console/web mode there's no metadata, so we skip dialing and
-    # just talk to whoever is already in the room.
+    # Parse dispatch metadata — carries phone_number, patient_id, episode_id, call_id.
+    # Falls back to demo defaults so the agent still works from the playground.
     phone_number = None
-    patient_id = DEFAULT_PATIENT_ID
+    meta = {}
     if ctx.job.metadata:
         try:
-            dial_info = json.loads(ctx.job.metadata)
-            phone_number = dial_info.get("phone_number")
-            patient_id = dial_info.get("patient_id", DEFAULT_PATIENT_ID)
+            meta = json.loads(ctx.job.metadata)
         except (json.JSONDecodeError, TypeError):
             logger.warning("Could not parse job metadata: %r", ctx.job.metadata)
 
-    patient = await fetch_patient(patient_id)
+    logger.info("parsed meta: %s", meta)
+
+    phone_number = meta.get("phone_number")
+    call_context = {
+        "patient_id": meta.get("patient_id", DEFAULT_PATIENT_ID),
+        "episode_id": meta.get("episode_id", DEFAULT_EPISODE_ID),
+        "call_id": meta.get("call_id", DEFAULT_CALL_ID),
+    }
+
+    patient = await fetch_patient(call_context["patient_id"])
     agent = CareAgent(patient)
 
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
+        userdata=call_context,
         stt=deepgram.STT(model="nova-3-medical"),
         llm=openai.LLM(
             model="anthropic/claude-sonnet-4-5",
