@@ -188,11 +188,24 @@ async def end_call(ctx: RunContext) -> str:
     logger.info("end_call — call=%s", call_id)
 
     try:
-        transcript = "\n".join(
-            f"{t.role}: {t.content}"
-            for t in ctx.session.history.items
-            if hasattr(t, "content") and t.content
-        )
+        lines = []
+        for t in ctx.session.history.items:
+            if not hasattr(t, "content") or not t.content:
+                continue
+            content = t.content
+            if isinstance(content, list):
+                text = " ".join(
+                    part.text if hasattr(part, "text") else str(part)
+                    for part in content
+                    if not (hasattr(part, "type") and getattr(part, "type", None) == "tool_use")
+                )
+            else:
+                text = str(content)
+            text = text.strip()
+            if text:
+                role = "Agent" if t.role == "assistant" else "Patient"
+                lines.append(f"{role}: {text}")
+        transcript = "\n".join(lines)
         async with httpx.AsyncClient() as client:
             await client.post(f"{BACKEND_URL}/calls/{call_id}/complete", json={
                 "transcript": transcript,

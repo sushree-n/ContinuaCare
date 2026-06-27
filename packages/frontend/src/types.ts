@@ -37,8 +37,13 @@ export interface Patient {
   dayLine: string
   day: number
   dx: string
+  discharge_notes?: string
+  medications?: string[]
+  episodeId?: string
+  callSummary?: string
   status: string
   statusKind: StatusKind
+  hasEpisode: boolean
   contactDone: boolean
   contactDay: number | null
   contactFailed?: boolean
@@ -118,6 +123,7 @@ export interface ApiEpisode {
   structured_extract?: unknown
   complexity?: ComplexityLevel
   triage_reason?: string
+  triage_rationale?: string
   visit_window_days?: number
   contact_deadline?: string
   visit_deadline?: string

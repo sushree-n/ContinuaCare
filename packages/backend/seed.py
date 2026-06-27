@@ -163,6 +163,7 @@ async def reseed():
             # Patient
             patient = Patient(**p_data)
             db.add(patient)
+            await db.flush()
 
             # Compute deadlines
             discharge = ep_data["discharge_date"]
@@ -192,6 +193,7 @@ async def reseed():
                 med_rec_completed=ep_data.get("med_rec_completed", False),
             )
             db.add(episode)
+            await db.flush()  # ensure episode id is in DB before call FK references it
 
             # Call (if defined)
             call_data = entry.get("call")

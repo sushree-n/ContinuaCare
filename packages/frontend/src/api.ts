@@ -1,9 +1,11 @@
 import axios from 'axios'
 import type {
+  ApiCall,
   ApiEpisode,
   ApiEscalation,
   ApiPatient,
   Patient,
+  TranscriptLine,
 } from './types'
 import { seedPatients } from './mockData'
 
@@ -42,6 +44,8 @@ export const createEpisode = (body: {
 }) => api.post<ApiEpisode>('/episodes', body)
 export const triggerCall = (episodeId: string) =>
   api.post(`/calls/trigger/${episodeId}`)
+export const getCallsForEpisode = (episodeId: string) =>
+  api.get<ApiCall[]>(`/calls/episode/${episodeId}`)
 export const getOpenEscalations = () =>
   api.get<ApiEscalation[]>('/escalations/open')
 export const acknowledgeAlert = (id: string) =>
@@ -64,18 +68,56 @@ const COMPLEXITY_AMOUNT: Record<string, string> = {
   '99496': '$272.68',
 }
 
-export function toPatientVM(p: ApiPatient, ep?: ApiEpisode): Patient {
+function parseTranscript(raw: string | undefined | null, _patientName: string): TranscriptLine[] {
+  if (!raw) return []
+  const result: TranscriptLine[] = []
+  for (const line of raw.split('\n')) {
+    const cleaned = line.replace(/^\[['"]|['"]\]$/g, '').trim()
+    if (!cleaned) continue
+    const agentMatch = cleaned.match(/^(Agent|Aria|ContinuaCare|assistant):\s*(.+)/i)
+    const patientMatch = cleaned.match(/^(Patient|user):\s*(.+)/i)
+    if (agentMatch) {
+      result.push({ who: 'agent', text: agentMatch[2] })
+    } else if (patientMatch) {
+      const text = patientMatch[2].replace(/^\[['"]|['"]\]$/g, '').trim()
+      if (text) result.push({ who: 'patient', text })
+    } else {
+      result.push({ who: 'agent', text: cleaned })
+    }
+  }
+  return result
+}
+
+export function toPatientVM(p: ApiPatient, ep?: ApiEpisode, calls?: ApiCall[]): Patient {
   const day = ep?.discharge_date
     ? Math.max(
         0,
         Math.round(
-          (Date.parse('2026-06-27') - Date.parse(ep.discharge_date)) / 86_400_000
+          (Date.now() - Date.parse(ep.discharge_date)) / 86_400_000
         )
       )
     : 0
   const code = ep?.cpt_code ?? null
   const confirmed = !!ep?.ready_to_bill || ep?.state === 'ready_to_bill'
   const escalated = ep?.state === 'escalated'
+  const hasEpisode = !!ep
+
+  let statusKind: Patient['statusKind'] = 'new'
+  if (!hasEpisode) statusKind = 'new'
+  else if (escalated) statusKind = 'flag'
+  else if (ep?.state === 'ready_to_bill') statusKind = 'ready'
+  else if (ep?.state === 'call_in_progress') statusKind = 'calling'
+  else if (code && !confirmed) statusKind = 'await'
+  else statusKind = 'window'
+
+  const meds = Array.isArray(p.medications) ? p.medications : []
+
+  // Use the most recent completed call for transcript/summary
+  const completedCall = (calls ?? [])
+    .filter((c) => c.status === 'completed')
+    .sort((a, b) => (b.attempt_number ?? 0) - (a.attempt_number ?? 0))[0]
+  const transcript = parseTranscript(completedCall?.transcript, p.name)
+
   return {
     id: p.id,
     name: p.name,
@@ -83,29 +125,30 @@ export function toPatientVM(p: ApiPatient, ep?: ApiEpisode): Patient {
     sex: 'F',
     phone: p.phone,
     facility: '—',
-    dischargeText: `Day ${day}`,
-    dayLine: `Day ${day}`,
+    dischargeText: ep ? `Day ${day}` : '—',
+    dayLine: ep ? `Day ${day}` : '—',
     day,
     dx: p.diagnosis,
-    status: ep?.state ?? 'discharge_detected',
-    statusKind: escalated
-      ? 'flag'
-      : ep?.state === 'ready_to_bill'
-      ? 'ready'
-      : code && !confirmed
-      ? 'await'
-      : 'window',
-    contactDone: ep ? ep.state !== 'discharge_detected' && ep.state !== 'awaiting_call' : false,
+    discharge_notes: ep?.discharge_notes,
+    medications: meds,
+    episodeId: ep?.id,
+    status: ep?.state ?? '',
+    statusKind,
+    hasEpisode,
+    contactDone: ep
+      ? !['discharge_detected', 'awaiting_call', 'call_in_progress'].includes(ep.state)
+      : false,
     contactDay: 1,
-    visit: ep?.face_to_face_date ? { slot: ep.face_to_face_date, provider: '' } : null,
+    visit: ep?.face_to_face_date ? { slot: new Date(ep.face_to_face_date).toLocaleDateString(), provider: '' } : null,
     code,
     complexity: ep?.complexity === 'high' ? 'High complexity' : ep?.complexity === 'moderate' ? 'Moderate complexity' : null,
     codeAmount: code ? COMPLEXITY_AMOUNT[code] ?? null : null,
-    codeRationale: ep?.triage_reason ?? null,
+    codeRationale: ep?.triage_reason ?? ep?.triage_rationale ?? null,
     codeConfirmed: confirmed,
-    flag: escalated ? (ep?.triage_reason ?? 'Escalation raised, review required.') : null,
+    flag: escalated ? (ep?.triage_reason ?? ep?.triage_rationale ?? 'Escalation raised, review required.') : null,
     ready: ep?.state === 'ready_to_bill',
-    transcript: [],
+    callSummary: completedCall?.summary ?? undefined,
+    transcript,
   }
 }
 
@@ -118,7 +161,6 @@ export async function getRoster(): Promise<Patient[]> {
   if (USE_MOCK) return seedPatients()
 
   const { data: patients } = await getPatients()
-  // Pull each patient's most recent episode in parallel, then adapt.
   const episodes = await Promise.all(
     patients.map((p) =>
       getPatientEpisode(p.id)
@@ -126,5 +168,14 @@ export async function getRoster(): Promise<Patient[]> {
         .catch(() => undefined)
     )
   )
-  return patients.map((p, i) => toPatientVM(p, episodes[i]))
+  const calls = await Promise.all(
+    episodes.map((ep) =>
+      ep
+        ? getCallsForEpisode(ep.id)
+            .then((r) => r.data)
+            .catch(() => [] as ApiCall[])
+        : Promise.resolve([] as ApiCall[])
+    )
+  )
+  return patients.map((p, i) => toPatientVM(p, episodes[i], calls[i]))
 }

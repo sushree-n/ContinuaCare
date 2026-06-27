@@ -194,6 +194,12 @@ async def no_answer(
     return call
 
 
+@router.get("/episode/{episode_id}", response_model=list[CallResponse])
+async def get_calls_for_episode(episode_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Call).where(Call.episode_id == episode_id))
+    return result.scalars().all()
+
+
 # ---------------------------------------------------------------------------
 # Background: Claude post-call summarizer
 # ---------------------------------------------------------------------------

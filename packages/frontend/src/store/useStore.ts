@@ -102,12 +102,21 @@ export const useStore = create<ContinuaCareState>((set, get) => ({
       discharge_date: dischargeDate,
       discharge_notes: notes,
     })
-    // Update the patient's status in the roster immediately
     set((s) => ({
       dischargeModal: null,
       patients: s.patients.map((p) =>
         p.id === patientId
-          ? { ...p, status: 'discharge_detected', statusKind: 'new', dischargeText: 'Just now · Day 0', dayLine: 'Just now · Day 0', day: 0 }
+          ? {
+              ...p,
+              hasEpisode: true,
+              episodeId: episode.id,
+              status: episode.state,
+              statusKind: 'window' as const,
+              dischargeText: 'Day 0',
+              dayLine: 'Day 0',
+              day: 0,
+              discharge_notes: episode.discharge_notes,
+            }
           : p
       ),
     }))
@@ -173,6 +182,7 @@ export const useStore = create<ContinuaCareState>((set, get) => ({
         transcript: job.lines,
         status: '',
         statusKind: 'new',
+        hasEpisode: true,
         contactDone: false,
         contactDay: null,
         ...extra,

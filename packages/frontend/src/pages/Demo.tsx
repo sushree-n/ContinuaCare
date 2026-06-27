@@ -50,6 +50,7 @@ export default function Demo() {
   const [dischargeDate, setDischargeDate] = useState(new Date().toISOString().slice(0, 16))
   const [dischargeNotes, setDischargeNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const stopPollingRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -61,9 +62,13 @@ export default function Demo() {
   const handleDischargeSubmit = async () => {
     if (!dischargeModal || !dischargeNotes.trim()) return
     setSubmitting(true)
+    setSubmitError(null)
     try {
       await submitDischarge(dischargeModal.patientId, new Date(dischargeDate).toISOString(), dischargeNotes)
       setDischargeNotes('')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setSubmitError(msg || 'Failed to create episode — check the backend is running.')
     } finally {
       setSubmitting(false)
     }
@@ -240,7 +245,7 @@ export default function Demo() {
                     </div>
                   </div>
                   <div style={css('display:flex;align-items:center;gap:8px')}>
-                    {(!selPatient?.status || selPatient.status === 'discharge_detected') && (
+                    {!selPatient?.hasEpisode && (
                       <H
                         as="button"
                         onClick={() => selPatient && initiateDischarge(selPatient.id, selPatient.name)}
@@ -441,6 +446,9 @@ export default function Demo() {
               <div style={css('font-size:12.5px;color:#9A968F;line-height:1.45')}>
                 This will create a TCM episode and automatically schedule a follow-up call to the patient within 15 seconds.
               </div>
+              {submitError && (
+                <div style={css('background:rgba(229,51,31,0.1);border:1px solid rgba(229,51,31,0.4);border-radius:8px;padding:10px 14px;font-size:13px;color:#C42718')}>{submitError}</div>
+              )}
               <div style={css('display:flex;gap:10px;justify-content:flex-end;margin-top:4px')}>
                 <H as="button" onClick={closeDischargeModal} style={css('padding:10px 18px;border:1px solid rgba(26,26,30,0.15);border-radius:8px;background:#fff;font-size:14px;font-weight:600;color:#6B6770;cursor:pointer')} hoverStyle={{ background: '#f5f5f5' }}>Cancel</H>
                 <H

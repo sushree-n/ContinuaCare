@@ -67,6 +67,7 @@ export interface StatusInfo {
 }
 
 export function statusInfo(p: Patient): StatusInfo {
+  if (!p.hasEpisode) return { text: 'Pending discharge', kind: 'new' }
   if (p.statusKind === 'calling') return { text: 'Outreach in progress', kind: 'calling' }
   if (p.flag) return { text: 'Action required', kind: 'flag' }
   if (p.ready) return { text: 'Ready for billing', kind: 'ready' }
@@ -341,7 +342,14 @@ export function buildSel(p: Patient | null): SelVM | null {
   const billingDate = fmtD(new Date(dischargeDate.getTime() + 30 * DAY_MS))
   const st3Date = p.ready ? billingDate : p.codeConfirmed ? 'Est. ' + billingDate : '—'
   const filledSeg = (segs[1] === 'done' ? 1 : 0) + (segs[2] === 'done' ? 1 : 0)
-  const dd = dischargeDetail(p)
+  const parsedMeds: Med[] = (p.medications || []).map((m) => {
+    const parts = m.split(' ')
+    const name = parts[0] || m
+    const dose = parts[1] || ''
+    const freq = parts.slice(2).join(' ')
+    return { name, dose, freq }
+  })
+  const ddNotes = p.discharge_notes || (p.hasEpisode ? 'Discharge summary on file.' : '')
   const sexFull = p.sex === 'F' ? 'Female' : 'Male'
 
   let hh = 0
@@ -451,15 +459,15 @@ export function buildSel(p: Patient | null): SelVM | null {
     dischargedDate,
     dischargedAgo,
     dx: p.dx,
-    dischargeNotes: dd.notes,
-    meds: dd.meds,
-    hasMeds: dd.meds.length > 0,
+    dischargeNotes: ddNotes,
+    meds: parsedMeds,
+    hasMeds: parsedMeds.length > 0,
     contactStatus,
     contactBadgeStyle,
     callDate,
     hasTranscript: (p.transcript || []).length > 0,
     noTranscript: (p.transcript || []).length === 0,
-    summary: callSummary(p),
+    summary: p.callSummary ?? callSummary(p),
     transcriptText,
     hasVisit: !!p.visit,
     visitSlot: p.visit ? p.visit.slot : '',
