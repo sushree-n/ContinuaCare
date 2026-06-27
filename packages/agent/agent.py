@@ -15,11 +15,13 @@ This is the first runnable version:
   * Any unexpected error mid-call fails safe by transferring to the care team.
 """
 
+import json
 import logging
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from livekit import api, rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -38,16 +40,21 @@ from livekit.plugins import deepgram, elevenlabs, openai, silero
 from prompts import build_agent_prompt, build_greeting
 from tools import end_call, perform_transfer_to_human, transfer_to_human, escalate, schedule_appointment
 
-# Load .env.local from the repo root by absolute path so the agent works no
-# matter which directory it's launched from (this file lives at
-# packages/agent/agent.py, so the root is two levels up).
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+# Load .env from the repo root by absolute path so the agent works no matter
+# which directory it's launched from (this file lives at packages/agent/agent.py,
+# so the root is two levels up). override=True so the file is authoritative for
+# local dev — a stale/empty shell variable can't shadow it.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=True)
 
 logger = logging.getLogger("continuacare.agent")
 logger.setLevel(logging.INFO)
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 DEFAULT_PATIENT_ID = "demo-patient-001"
+
+# Stored outbound SIP trunk (ST_xxxx) created with `lk sip outbound create`.
+# Used to dial the patient when the agent is dispatched for an outbound call.
+OUTBOUND_TRUNK_ID = os.getenv("LIVEKIT_SIP_TRUNK_ID")
 
 # Turn handling — let the STT (Deepgram) drive end-of-turn via its own
 # end-of-speech signal instead of bare VAD silence, use the adaptive barge-in
@@ -116,6 +123,9 @@ class CareAgent(Agent):
             tools=[transfer_to_human, escalate, schedule_appointment, end_call],
         )
         self.patient = patient
+        # Set once the patient (SIP participant) joins on an outbound call;
+        # a later real SIP REFER transfer to a human will need this reference.
+        self.participant: rtc.RemoteParticipant | None = None
 
     async def on_enter(self):
         # Drive the opening turn from the kickoff prompt; the detailed rules live
@@ -128,11 +138,29 @@ class CareAgent(Agent):
 # Entrypoint
 # ---------------------------------------------------------------------------
 
-@server.rtc_session(agent_name="continuacare-agent")
+@server.rtc_session(agent_name="continuacare")
 async def entrypoint(ctx: JobContext):
     ctx.log_context_fields = {"room": ctx.room.name}
+    await ctx.connect()
 
-    patient = await fetch_patient(DEFAULT_PATIENT_ID)
+    # When the agent is dispatched to place an outbound call, the dispatch
+    # metadata carries the patient's phone number (E.164) and patient id, e.g.
+    #   lk dispatch create --new-room --agent-name continuacare-agent \
+    #       --metadata '{"phone_number": "+15105550123", "patient_id": "..."}'
+    # When run in console/web mode there's no metadata, so we skip dialing and
+    # just talk to whoever is already in the room.
+    phone_number = None
+    patient_id = DEFAULT_PATIENT_ID
+    if ctx.job.metadata:
+        try:
+            dial_info = json.loads(ctx.job.metadata)
+            phone_number = dial_info.get("phone_number")
+            patient_id = dial_info.get("patient_id", DEFAULT_PATIENT_ID)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("Could not parse job metadata: %r", ctx.job.metadata)
+
+    patient = await fetch_patient(patient_id)
+    agent = CareAgent(patient)
 
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
@@ -150,9 +178,39 @@ async def entrypoint(ctx: JobContext):
         turn_handling=TURN_HANDLING,
     )
 
+    # Place the outbound call and wait for the patient to actually pick up
+    # before the agent starts speaking — otherwise the CareAgent.on_enter
+    # greeting would play into a ringing line. `wait_until_answered=True`
+    # blocks until the callee answers or the dial fails.
+    if phone_number is not None:
+        if not OUTBOUND_TRUNK_ID:
+            logger.error("LIVEKIT_SIP_TRUNK_ID is not set — cannot place outbound call")
+            ctx.shutdown()
+            return
+        try:
+            await ctx.api.sip.create_sip_participant(
+                api.CreateSIPParticipantRequest(
+                    room_name=ctx.room.name,
+                    sip_trunk_id=OUTBOUND_TRUNK_ID,
+                    sip_call_to=phone_number,
+                    participant_identity=phone_number,
+                    wait_until_answered=True,
+                )
+            )
+            logger.info("Outbound call to %s answered", phone_number)
+            agent.participant = await ctx.wait_for_participant(identity=phone_number)
+        except api.TwirpError as e:
+            # No answer / busy / rejected / trunk failure — give up this job.
+            logger.error(
+                "Outbound call to %s failed: %s (SIP %s %s)",
+                phone_number, e.message,
+                e.metadata.get("sip_status_code"), e.metadata.get("sip_status"),
+            )
+            ctx.shutdown()
+            return
+
     try:
-        await session.start(agent=CareAgent(patient), room=ctx.room)
-        await ctx.connect()
+        await session.start(agent=agent, room=ctx.room)
     except Exception:
         # Fail safe: if anything goes wrong mid-call, get a human on the line
         # rather than leaving the patient with a broken agent.
