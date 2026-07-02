@@ -51,13 +51,21 @@ async def list_patients(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
-@router.get("/{patient_id}", response_model=PatientResponse)
+@router.get("/{patient_id}")
 async def get_patient(patient_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Patient).where(Patient.id == patient_id))
     patient = result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return patient
+    return {
+        "id": patient.id,
+        "name": patient.name,
+        "age": patient.age,
+        "phone": patient.phone,
+        "diagnosis": patient.diagnosis,
+        "medications": patient.medications or [],
+        "created_at": patient.created_at.isoformat() if patient.created_at else None,
+    }
 
 
 @router.get("/{patient_id}/episode")
