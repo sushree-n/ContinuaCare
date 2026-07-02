@@ -12,7 +12,7 @@ Built at the **Healthcare AI Hackathon, June 2026**.
 
 https://github.com/user-attachments/assets/fc4e650a-f6cc-40d2-9224-84cdf56b2cab
 
-*Escalation web call — Aria detects a red flag, notifies the care team, and closes the call gracefully (no SIP transfer on web).*
+*Escalation web call — Aria detects a red flag, notifies the care team, call transcript & summary updates. (No SIP transfer on web).*
 
 ---
 
