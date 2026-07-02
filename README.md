@@ -8,6 +8,14 @@ Built at the **Healthcare AI Hackathon, June 2026**.
 
 ---
 
+## Demo
+
+https://github.com/user-attachments/assets/fc4e650a-f6cc-40d2-9224-84cdf56b2cab
+
+*Escalation web call — Aria detects a red flag, notifies the care team, and closes the call gracefully (no SIP transfer on web).*
+
+---
+
 ## The Problem
 
 Medicare's Transitional Care Management (TCM) program pays primary care physicians $200–$275 per patient to coordinate care in the 30 days following a hospital discharge. The requirements: contact the patient within 2 business days, see them face-to-face within 7–14 days, and document everything.
