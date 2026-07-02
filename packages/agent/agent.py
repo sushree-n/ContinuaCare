@@ -42,7 +42,14 @@ from tools import perform_transfer_to_human
 # which directory it's launched from (this file lives at packages/agent/agent.py,
 # so the root is two levels up). override=True so the file is authoritative for
 # local dev — a stale/empty shell variable can't shadow it.
-load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=True)
+# Walk up looking for .env — works both locally (2 levels up) and on Railway
+# (agent is deployed as root, so no parent .env exists; env vars come from the platform).
+_root = Path(__file__).resolve().parent
+for _ in range(3):
+    if (_root / ".env").exists():
+        load_dotenv(_root / ".env", override=True)
+        break
+    _root = _root.parent
 
 logger = logging.getLogger("continuacare.agent")
 logger.setLevel(logging.INFO)

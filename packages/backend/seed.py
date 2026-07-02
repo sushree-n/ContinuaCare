@@ -5,8 +5,6 @@ Run from packages/backend/ with the venv active:
 """
 
 import asyncio
-import os
-import sys
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -14,7 +12,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=True)
 
-from sqlalchemy import text
 from database import AsyncSessionLocal, engine, Base
 from models import (
     Patient, TCMEpisode, Call, Escalation, CallSchedule,
@@ -25,18 +22,14 @@ TODAY = datetime(2026, 7, 2)
 
 def uid(): return str(uuid.uuid4())
 
-# ---------------------------------------------------------------------------
-# Patient + episode definitions
-# ---------------------------------------------------------------------------
-
 PATIENTS = [
-    # ── Ready to discharge (no episode yet) ─────────────────────────────────
+    # ── Ready to discharge (no episode) — for live web demo calls ────────────
     {
         "patient": {
             "id": uid(),
             "name": "Eleanor Vasquez",
             "age": 67,
-            "phone": "+17165073866",
+            "phone": "",
             "diagnosis": "Congestive Heart Failure",
             "medications": ["Torsemide 20mg daily", "Lisinopril 10mg daily", "Carvedilol 6.25mg twice daily"],
         },
@@ -46,7 +39,7 @@ PATIENTS = [
             "id": uid(),
             "name": "Frank Delgado",
             "age": 58,
-            "phone": "+17165073866",
+            "phone": "",
             "diagnosis": "COPD Exacerbation",
             "medications": ["Tiotropium inhaler daily", "Albuterol inhaler as needed", "Prednisone 40mg taper"],
         },
@@ -56,18 +49,48 @@ PATIENTS = [
             "id": uid(),
             "name": "Beverly Kim",
             "age": 72,
-            "phone": "+17165073866",
+            "phone": "",
             "diagnosis": "Diabetes with infected foot wound",
             "medications": ["Metformin 1000mg twice daily", "Insulin glargine 18 units nightly", "Augmentin 875mg twice daily"],
         },
     },
-    # ── Active episodes at various stages ───────────────────────────────────
+    {
+        "patient": {
+            "id": uid(),
+            "name": "Arthur Patel",
+            "age": 64,
+            "phone": "",
+            "diagnosis": "Pneumonia",
+            "medications": ["Azithromycin 250mg daily", "Guaifenesin 400mg every 4h", "Albuterol inhaler as needed"],
+        },
+    },
+    {
+        "patient": {
+            "id": uid(),
+            "name": "Diane Kowalski",
+            "age": 70,
+            "phone": "",
+            "diagnosis": "Hip Replacement",
+            "medications": ["Aspirin 81mg daily", "Oxycodone 5mg every 6h as needed", "Enoxaparin 40mg daily"],
+        },
+    },
+    {
+        "patient": {
+            "id": uid(),
+            "name": "Marcus Bell",
+            "age": 55,
+            "phone": "",
+            "diagnosis": "AMI — STEMI",
+            "medications": ["Aspirin 81mg daily", "Clopidogrel 75mg daily", "Atorvastatin 80mg daily", "Metoprolol 50mg twice daily"],
+        },
+    },
+    # ── Active episodes at various pipeline stages ────────────────────────────
     {
         "patient": {
             "id": uid(),
             "name": "Thomas Brennan",
             "age": 76,
-            "phone": "+17165073866",
+            "phone": "",
             "diagnosis": "Sepsis",
             "medications": ["Vancomycin 1g every 12h", "Piperacillin-tazobactam 3.375g every 6h", "Metoprolol 25mg daily"],
         },
@@ -85,7 +108,7 @@ PATIENTS = [
             "id": uid(),
             "name": "Gloria Washington",
             "age": 63,
-            "phone": "+17165073866",
+            "phone": "",
             "diagnosis": "AMI — STEMI",
             "medications": ["Aspirin 81mg daily", "Clopidogrel 75mg daily", "Atorvastatin 80mg daily", "Metoprolol 50mg twice daily"],
         },
@@ -107,7 +130,7 @@ PATIENTS = [
             "id": uid(),
             "name": "Raymond Foster",
             "age": 71,
-            "phone": "+17165073866",
+            "phone": "",
             "diagnosis": "Knee Replacement",
             "medications": ["Aspirin 81mg daily", "Oxycodone 5mg every 6h as needed", "Enoxaparin 40mg daily"],
         },
@@ -131,7 +154,7 @@ PATIENTS = [
             "id": uid(),
             "name": "Sandra Okafor",
             "age": 64,
-            "phone": "+17165073866",
+            "phone": "",
             "diagnosis": "Pneumonia",
             "medications": ["Azithromycin 250mg daily x5 days", "Guaifenesin 400mg every 4h", "Albuterol inhaler as needed"],
         },
@@ -156,7 +179,6 @@ PATIENTS = [
 
 
 async def reseed():
-    # Drop and recreate all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -167,7 +189,6 @@ async def reseed():
             p_data = entry["patient"]
             ep_data = entry.get("episode")
 
-            # Patient
             patient = Patient(**p_data)
             db.add(patient)
             await db.flush()
@@ -176,7 +197,6 @@ async def reseed():
                 print(f"  + {p_data['name']} (no episode — ready to discharge)")
                 continue
 
-            # Compute deadlines
             discharge = ep_data["discharge_date"]
             visit_window = ep_data.get("visit_window_days", 14)
 
@@ -206,7 +226,6 @@ async def reseed():
             db.add(episode)
             await db.flush()
 
-            # Call (if defined)
             call_data = entry.get("call")
             call = None
             if call_data:
@@ -225,7 +244,6 @@ async def reseed():
                 )
                 db.add(call)
 
-            # Escalation (if defined)
             esc_data = entry.get("escalation")
             if esc_data:
                 esc = Escalation(
@@ -243,14 +261,17 @@ async def reseed():
 
         await db.commit()
 
-    print("\n✓ Seed complete — 7 patients inserted")
-    print("  Eleanor Vasquez   — no episode (ready to discharge, CHF)")
-    print("  Frank Delgado     — no episode (ready to discharge, COPD)")
-    print("  Beverly Kim       — no episode (ready to discharge, Diabetes/foot wound)")
-    print("  Thomas Brennan    — AWAITING_CALL (Sepsis, HIGH)")
-    print("  Gloria Washington — ESCALATED (STEMI, HIGH)")
-    print("  Raymond Foster    — CALL_COMPLETE (Knee Replacement, MODERATE)")
-    print("  Sandra Okafor     — READY_TO_BILL (Pneumonia, MODERATE)")
+    print("\n✓ Seed complete — 10 patients inserted")
+    print("  Eleanor Vasquez   — ready to discharge (CHF)")
+    print("  Frank Delgado     — ready to discharge (COPD)")
+    print("  Beverly Kim       — ready to discharge (Diabetes/foot wound)")
+    print("  Arthur Patel      — ready to discharge (Pneumonia)")
+    print("  Diane Kowalski    — ready to discharge (Hip Replacement)")
+    print("  Marcus Bell       — ready to discharge (STEMI)")
+    print("  Thomas Brennan    — AWAITING_CALL (Sepsis)")
+    print("  Gloria Washington — ESCALATED (STEMI)")
+    print("  Raymond Foster    — CALL_COMPLETE (Knee Replacement)")
+    print("  Sandra Okafor     — READY_TO_BILL (Pneumonia)")
 
 
 if __name__ == "__main__":
