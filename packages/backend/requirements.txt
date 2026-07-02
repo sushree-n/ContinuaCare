@@ -31,3 +31,4 @@ typing_extensions==4.15.0
 tzlocal==5.4.3
 uvicorn==0.49.0
 livekit
+livekit-api
