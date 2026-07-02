@@ -43,6 +43,8 @@ services:
         sync: false
       - key: DEMO_MODE
         value: "true"
+      - key: PHONE_CALLS_ENABLED
+        value: "false"
       - key: DEMO_CALL_DELAY_SECONDS
         value: "15"
       - key: CARE_TEAM_PHONE_NUMBER
@@ -92,3 +94,6 @@ services:
         value: "false"
       - key: VITE_API_URL
         sync: false
+      # Set to "true" in Render dashboard only when you want real phone calls enabled
+      - key: VITE_PHONE_CALLS_ENABLED
+        value: "false"

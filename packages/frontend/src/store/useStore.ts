@@ -24,7 +24,7 @@ interface ContinuaCareState {
   startEscalationPolling: () => () => void
   triggerDischarge: () => void
   initiateDischarge: (patientId: string, patientName: string) => void
-  submitDischarge: (patientId: string, dischargeDate: string, notes: string) => Promise<void>
+  submitDischarge: (patientId: string, dischargeDate: string, notes: string) => Promise<{ id: string } | undefined>
   confirmCode: (id: string) => void
   chooseCode: (id: string, code: string) => void
   markReviewed: (id: string) => void
@@ -120,7 +120,7 @@ export const useStore = create<ContinuaCareState>((set, get) => ({
           : p
       ),
     }))
-    return void episode
+    return episode
   },
 
   triggerDischarge: () =>

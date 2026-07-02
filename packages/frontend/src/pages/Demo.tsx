@@ -4,6 +4,8 @@ import { css, H } from '../lib/ui'
 import { matchFilter, useStore } from '../store/useStore'
 import { buildRow, buildSel } from '../lib/viewModel'
 import type { FilterKey } from '../types'
+import { startWebCall, PHONE_CALLS_ENABLED } from '../api'
+import WebCallOverlay from '../components/WebCallOverlay'
 
 const AMOUNTS: Record<string, number> = { '99495': 201.2, '99496': 272.68 }
 
@@ -53,6 +55,9 @@ export default function Demo() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const stopPollingRef = useRef<(() => void) | null>(null)
 
+  const [webCall, setWebCall] = useState<{ token: string; wsUrl: string; patientName: string } | null>(null)
+  const [webCallLoading, setWebCallLoading] = useState(false)
+
   useEffect(() => {
     hydrate()
     stopPollingRef.current = startEscalationPolling()
@@ -71,6 +76,36 @@ export default function Demo() {
       setSubmitError(msg || 'Failed to create episode — check the backend is running.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleWebCallFromModal = async () => {
+    if (!dischargeModal || !dischargeNotes.trim()) return
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const episode = await submitDischarge(dischargeModal.patientId, new Date(dischargeDate).toISOString(), dischargeNotes)
+      setDischargeNotes('')
+      if (episode?.id) {
+        await launchWebCall(episode.id, dischargeModal.patientName)
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setSubmitError(msg || 'Failed to create episode — check the backend is running.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const launchWebCall = async (episodeId: string, patientName: string) => {
+    setWebCallLoading(true)
+    try {
+      const { data } = await startWebCall(episodeId)
+      setWebCall({ token: data.token, wsUrl: data.ws_url, patientName })
+    } catch (e) {
+      console.error('Web call failed to start', e)
+    } finally {
+      setWebCallLoading(false)
     }
   }
 
@@ -246,6 +281,16 @@ export default function Demo() {
                         ＋ Initiate Discharge
                       </H>
                     )}
+                    {selPatient?.hasEpisode && selPatient.episodeId && (
+                      <H
+                        as="button"
+                        onClick={() => selPatient.episodeId && launchWebCall(selPatient.episodeId, selPatient.name)}
+                        style={css(`display:flex;align-items:center;gap:6px;background:#fff;color:#0E9A49;border:2px solid #0E9A49;font-weight:700;font-size:13px;padding:7px 13px;border-radius:7px;cursor:${webCallLoading ? 'not-allowed' : 'pointer'};white-space:nowrap`)}
+                        hoverStyle={{ background: 'rgba(14,154,73,0.06)' }}
+                      >
+                        🎙️ {webCallLoading ? 'Starting…' : 'Web demo call'}
+                      </H>
+                    )}
                     <H as="button" onClick={closeDrawer} style={css('width:32px;height:32px;flex-shrink:0;border-radius:7px;border:1px solid rgba(26,26,30,0.12);background:#fff;color:#6B6770;font-size:14px;cursor:pointer')} hoverStyle={{ background: 'rgba(26,26,30,0.06)' }}>✕</H>
                   </div>
                 </div>
@@ -402,6 +447,16 @@ export default function Demo() {
         )}
       </div>
 
+      {/* ===== WEB CALL OVERLAY ===== */}
+      {webCall && (
+        <WebCallOverlay
+          token={webCall.token}
+          wsUrl={webCall.wsUrl}
+          patientName={webCall.patientName}
+          onClose={() => { setWebCall(null); hydrate() }}
+        />
+      )}
+
       {/* ===== DISCHARGE MODAL ===== */}
       {dischargeModal && (
         <div style={css('position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px')}>
@@ -440,16 +495,30 @@ export default function Demo() {
               {submitError && (
                 <div style={css('background:rgba(229,51,31,0.1);border:1px solid rgba(229,51,31,0.4);border-radius:8px;padding:10px 14px;font-size:13px;color:#C42718')}>{submitError}</div>
               )}
-              <div style={css('display:flex;gap:10px;justify-content:flex-end;margin-top:4px')}>
-                <H as="button" onClick={closeDischargeModal} style={css('padding:10px 18px;border:1px solid rgba(26,26,30,0.15);border-radius:8px;background:#fff;font-size:14px;font-weight:600;color:#6B6770;cursor:pointer')} hoverStyle={{ background: '#f5f5f5' }}>Cancel</H>
-                <H
-                  as="button"
-                  onClick={handleDischargeSubmit}
-                  style={css(`padding:10px 20px;border:none;border-radius:8px;background:${submitting || !dischargeNotes.trim() ? '#9ca3af' : '#032640'};color:#fff;font-size:14px;font-weight:600;cursor:${submitting || !dischargeNotes.trim() ? 'not-allowed' : 'pointer'}`)}
-                  hoverStyle={submitting || !dischargeNotes.trim() ? {} : { background: '#0a3a5c' }}
-                >
-                  {submitting ? 'Creating…' : 'Initiate discharge & schedule call'}
-                </H>
+              <div style={css('display:flex;flex-direction:column;gap:8px;margin-top:4px')}>
+                <div style={css('display:flex;gap:10px;justify-content:flex-end')}>
+                  <H as="button" onClick={closeDischargeModal} style={css('padding:10px 18px;border:1px solid rgba(26,26,30,0.15);border-radius:8px;background:#fff;font-size:14px;font-weight:600;color:#6B6770;cursor:pointer')} hoverStyle={{ background: '#f5f5f5' }}>Cancel</H>
+                  {PHONE_CALLS_ENABLED && (
+                    <H
+                      as="button"
+                      onClick={handleDischargeSubmit}
+                      style={css(`padding:10px 20px;border:none;border-radius:8px;background:${submitting || !dischargeNotes.trim() ? '#9ca3af' : '#032640'};color:#fff;font-size:14px;font-weight:600;cursor:${submitting || !dischargeNotes.trim() ? 'not-allowed' : 'pointer'}`)}
+                      hoverStyle={submitting || !dischargeNotes.trim() ? {} : { background: '#0a3a5c' }}
+                    >
+                      {submitting ? 'Creating…' : 'Schedule phone call'}
+                    </H>
+                  )}
+                </div>
+                <div style={css('display:flex;justify-content:flex-end')}>
+                  <H
+                    as="button"
+                    onClick={handleWebCallFromModal}
+                    style={css(`width:100%;padding:11px 20px;border:2px solid ${submitting || !dischargeNotes.trim() ? '#9ca3af' : '#0E9A49'};border-radius:8px;background:#fff;color:${submitting || !dischargeNotes.trim() ? '#9ca3af' : '#0E9A49'};font-size:14px;font-weight:700;cursor:${submitting || !dischargeNotes.trim() ? 'not-allowed' : 'pointer'};display:flex;align-items:center;justify-content:center;gap:8px`)}
+                    hoverStyle={submitting || !dischargeNotes.trim() ? {} : { background: 'rgba(14,154,73,0.06)' }}
+                  >
+                    🎙️ {submitting ? 'Creating…' : 'Start web demo call'}
+                  </H>
+                </div>
               </div>
             </div>
           </div>

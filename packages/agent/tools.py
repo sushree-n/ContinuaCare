@@ -77,8 +77,20 @@ async def perform_transfer_to_human(reason: str, session=None) -> str:
             None,
         )
         if sip_participant is None:
-            logger.error("No SIP participant to transfer (reason: %s)", reason)
-            return await _say_failure(session)
+            # Web call — no SIP to transfer. Reassure the patient and end cleanly.
+            logger.info("No SIP participant — web call escalation, ending with care team message (reason: %s)", reason)
+            if session is not None:
+                try:
+                    handle = await session.say(
+                        "I've flagged this for your care team and they will be reaching out to you very shortly. "
+                        "Please don't hesitate to call the office or go to the emergency room if you feel it's urgent. Take care.",
+                        allow_interruptions=False,
+                    )
+                    await handle.wait_for_playout()
+                except Exception:
+                    logger.exception("Could not speak web-call escalation message")
+                session.shutdown(drain=True)
+            return "Escalation recorded. Care team notified — no SIP transfer on web call."
 
         # Let the "stay on the line" message play fully BEFORE the REFER, because
         # a cold transfer disconnects the patient the moment it's accepted.

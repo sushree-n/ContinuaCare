@@ -21,7 +21,7 @@ from models import (
     EpisodeState, ComplexityLevel, CallStatus, EscalationStatus,
 )
 
-TODAY = datetime(2026, 6, 27)
+TODAY = datetime(2026, 7, 2)
 
 def uid(): return str(uuid.uuid4())
 
@@ -30,18 +30,50 @@ def uid(): return str(uuid.uuid4())
 # ---------------------------------------------------------------------------
 
 PATIENTS = [
+    # ── Ready to discharge (no episode yet) ─────────────────────────────────
     {
         "patient": {
             "id": uid(),
-            "name": "Margaret Chen",
-            "age": 74,
-            "phone": "+17165073866",   # ← replace with a real number for live calls
-            "diagnosis": "Heart Failure",
-            "medications": ["Furosemide 40mg daily", "Metoprolol 25mg twice daily", "Lisinopril 10mg daily"],
+            "name": "Eleanor Vasquez",
+            "age": 67,
+            "phone": "+17165073866",
+            "diagnosis": "Congestive Heart Failure",
+            "medications": ["Torsemide 20mg daily", "Lisinopril 10mg daily", "Carvedilol 6.25mg twice daily"],
+        },
+    },
+    {
+        "patient": {
+            "id": uid(),
+            "name": "Frank Delgado",
+            "age": 58,
+            "phone": "+17165073866",
+            "diagnosis": "COPD Exacerbation",
+            "medications": ["Tiotropium inhaler daily", "Albuterol inhaler as needed", "Prednisone 40mg taper"],
+        },
+    },
+    {
+        "patient": {
+            "id": uid(),
+            "name": "Beverly Kim",
+            "age": 72,
+            "phone": "+17165073866",
+            "diagnosis": "Diabetes with infected foot wound",
+            "medications": ["Metformin 1000mg twice daily", "Insulin glargine 18 units nightly", "Augmentin 875mg twice daily"],
+        },
+    },
+    # ── Active episodes at various stages ───────────────────────────────────
+    {
+        "patient": {
+            "id": uid(),
+            "name": "Thomas Brennan",
+            "age": 76,
+            "phone": "+17165073866",
+            "diagnosis": "Sepsis",
+            "medications": ["Vancomycin 1g every 12h", "Piperacillin-tazobactam 3.375g every 6h", "Metoprolol 25mg daily"],
         },
         "episode": {
             "discharge_date": TODAY - timedelta(days=1),
-            "discharge_notes": "Patient discharged after acute heart failure exacerbation. BNP normalized on diuretics. Volume overload resolved. Resume home medications. Strict 2-pound weight rule.",
+            "discharge_notes": "76M admitted for sepsis secondary to UTI. Blood cultures positive for E. coli, sensitivities pending. IV antibiotics transitioned to oral at discharge. Foley catheter removed. Follow-up urine culture needed in 5 days.",
             "state": EpisodeState.AWAITING_CALL,
             "complexity": ComplexityLevel.HIGH,
             "cpt_code": "99496",
@@ -51,37 +83,37 @@ PATIENTS = [
     {
         "patient": {
             "id": uid(),
-            "name": "Robert Williams",
-            "age": 68,
+            "name": "Gloria Washington",
+            "age": 63,
             "phone": "+17165073866",
-            "diagnosis": "COPD",
-            "medications": ["Tiotropium inhaler daily", "Albuterol inhaler as needed", "Prednisone 40mg 5-day taper"],
+            "diagnosis": "AMI — STEMI",
+            "medications": ["Aspirin 81mg daily", "Clopidogrel 75mg daily", "Atorvastatin 80mg daily", "Metoprolol 50mg twice daily"],
         },
         "episode": {
             "discharge_date": TODAY - timedelta(days=2),
-            "discharge_notes": "COPD exacerbation, admitted for 3 days. Responded well to steroids and bronchodilators. O2 sats stable at 94% on room air at discharge. Complete steroid taper at home.",
+            "discharge_notes": "63F STEMI with successful PCI to LAD. Drug-eluting stent placed. EF 42% on discharge echo. Dual antiplatelet therapy started — do NOT stop without cardiology approval. Cardiac rehab referral placed.",
             "state": EpisodeState.ESCALATED,
             "complexity": ComplexityLevel.HIGH,
             "cpt_code": "99496",
             "visit_window_days": 7,
         },
         "escalation": {
-            "reason": "Patient reported increased breathlessness and yellow-green sputum since discharge — possible re-exacerbation",
+            "reason": "Patient reported brief chest tightness and shortness of breath when climbing stairs — possible post-MI angina",
             "severity": "urgent",
         },
     },
     {
         "patient": {
             "id": uid(),
-            "name": "Dorothy Martinez",
-            "age": 79,
+            "name": "Raymond Foster",
+            "age": 71,
             "phone": "+17165073866",
-            "diagnosis": "Hip Replacement",
+            "diagnosis": "Knee Replacement",
             "medications": ["Aspirin 81mg daily", "Oxycodone 5mg every 6h as needed", "Enoxaparin 40mg daily"],
         },
         "episode": {
-            "discharge_date": TODAY - timedelta(days=3),
-            "discharge_notes": "Right total hip arthroplasty. Uncomplicated post-op course. Weight-bearing as tolerated. PT/OT initiated. DVT prophylaxis with enoxaparin for 28 days.",
+            "discharge_date": TODAY - timedelta(days=4),
+            "discharge_notes": "Left total knee arthroplasty. Uncomplicated post-op course. ROM 0-90 degrees at discharge. PT twice weekly arranged. DVT prophylaxis 28 days. Wound dry and intact.",
             "state": EpisodeState.CALL_COMPLETE,
             "complexity": ComplexityLevel.MODERATE,
             "cpt_code": "99495",
@@ -90,59 +122,34 @@ PATIENTS = [
         "call": {
             "status": CallStatus.COMPLETED,
             "attempt_number": 1,
-            "summary": "Patient doing well at home. Mild pain controlled with medications. No fever, no wound discharge, bearing weight with walker. Follow-up visit confirmed for Thursday.",
-            "transcript": "Agent: Hi Dorothy, this is Aria from Dr. Smith's care team. How are you feeling since your hip surgery?\nPatient: Pretty good actually, just a little sore.\nAgent: That's expected. Any fever, redness at the wound, or trouble bearing weight?\nPatient: No, none of that. I'm using my walker like they told me.\nAgent: Wonderful. Let's get you scheduled for your follow-up. Does Thursday at 2pm work?\nPatient: Yes, Thursday works perfectly.\nAgent: Great, you're all set for Thursday at 2pm. Call us if anything changes before then.",
+            "summary": "Patient recovering well. Pain managed with medication. No wound issues, no fever. Attending PT sessions. Follow-up visit scheduled for next Tuesday.",
+            "transcript": "Agent: Hi Raymond, this is Aria from Dr. Smith's care team. How are you feeling since your knee surgery?\nPatient: Better than expected honestly. A bit sore but managing.\nAgent: Good to hear. Any fever, swelling beyond what's expected, or wound opening?\nPatient: No, the wound looks clean. Just the normal swelling my PT mentioned.\nAgent: Great. Are you making it to your PT sessions?\nPatient: Yes, twice this week already.\nAgent: Excellent. Let's get your follow-up visit on the books. We have Tuesday at 9am — does that work?\nPatient: Tuesday at 9 is perfect.\nAgent: You're all set. Call us if anything changes before then.",
         },
     },
     {
         "patient": {
             "id": uid(),
-            "name": "James Thompson",
-            "age": 62,
+            "name": "Sandra Okafor",
+            "age": 64,
             "phone": "+17165073866",
-            "diagnosis": "AMI",
-            "medications": ["Aspirin 81mg daily", "Atorvastatin 80mg daily", "Metoprolol 50mg twice daily", "Clopidogrel 75mg daily"],
+            "diagnosis": "Pneumonia",
+            "medications": ["Azithromycin 250mg daily x5 days", "Guaifenesin 400mg every 4h", "Albuterol inhaler as needed"],
         },
         "episode": {
-            "discharge_date": TODAY - timedelta(days=5),
-            "discharge_notes": "STEMI with successful PCI to LAD. EF 45% on discharge echo. Dual antiplatelet therapy started. Cardiac rehab referral placed. No chest pain at discharge.",
-            "state": EpisodeState.VISIT_SCHEDULED,
-            "complexity": ComplexityLevel.HIGH,
-            "cpt_code": "99496",
-            "visit_window_days": 7,
-            "face_to_face_date": TODAY + timedelta(days=1),
-        },
-        "call": {
-            "status": CallStatus.COMPLETED,
-            "attempt_number": 1,
-            "summary": "Patient recovery on track. Denies chest pain, shortness of breath, or dizziness. Taking all medications. Confirmed cardiology follow-up appointment.",
-            "transcript": "Agent: Hi James, this is Aria from Dr. Smith's care team checking in after your recent hospitalization.\nPatient: Oh yes, hello.\nAgent: How have you been feeling since coming home?\nPatient: Pretty good, no chest pain or anything like that.\nAgent: Great. Any shortness of breath, dizziness, or left arm pain?\nPatient: No, none of that.\nAgent: Excellent. You're scheduled for your cardiology follow-up tomorrow — does that still work?\nPatient: Yes, I'll be there.\nAgent: Perfect. Don't forget all four of your heart medications.",
-        },
-    },
-    {
-        "patient": {
-            "id": uid(),
-            "name": "Patricia Johnson",
-            "age": 71,
-            "phone": "+17165073866",
-            "diagnosis": "Diabetes",
-            "medications": ["Metformin 1000mg twice daily", "Glipizide 10mg daily", "Lisinopril 5mg daily"],
-        },
-        "episode": {
-            "discharge_date": TODAY - timedelta(days=8),
-            "discharge_notes": "Diabetic ketoacidosis, precipitated by infection. Blood sugars stabilized on insulin drip then transitioned to oral agents. Infection treated with antibiotics. Discharged with home glucose monitoring instructions.",
+            "discharge_date": TODAY - timedelta(days=9),
+            "discharge_notes": "Community-acquired pneumonia, right lower lobe. Responded to IV ceftriaxone, transitioned to oral azithromycin. O2 sats 97% on room air at discharge. Complete antibiotic course at home. Follow-up CXR in 6 weeks.",
             "state": EpisodeState.READY_TO_BILL,
             "complexity": ComplexityLevel.MODERATE,
             "cpt_code": "99495",
             "visit_window_days": 14,
-            "face_to_face_date": TODAY - timedelta(days=2),
+            "face_to_face_date": TODAY - timedelta(days=3),
             "med_rec_completed": True,
         },
         "call": {
             "status": CallStatus.COMPLETED,
             "attempt_number": 1,
-            "summary": "Patient managing well. Blood sugars in range (120-160). Completed antibiotic course. Attended face-to-face visit with PCP. Medication reconciliation completed.",
-            "transcript": "Agent: Hi Patricia, this is Aria calling to check in after your hospital stay.\nPatient: Hi, yes.\nAgent: How are your blood sugars running at home?\nPatient: Pretty good, mostly between 120 and 160.\nAgent: That's great. Any confusion, chest pain, or foot sores?\nPatient: No, feeling much better.\nAgent: Wonderful. You saw your doctor two days ago — how did that go?\nPatient: It went well, she adjusted my Metformin dose slightly.\nAgent: Perfect. Everything looks on track.",
+            "summary": "Patient fully recovered. No fever, no shortness of breath. Completed antibiotic course. Attended face-to-face visit, chest X-ray follow-up scheduled in 6 weeks. Ready to bill CPT 99495.",
+            "transcript": "Agent: Hi Sandra, this is Aria from Dr. Smith's care team. How are you feeling after your hospital stay?\nPatient: Much better, thank you. Back to normal almost.\nAgent: Wonderful. Any return of fever, chest pain, or increased breathlessness?\nPatient: No, none of that. I finished all the antibiotics.\nAgent: Perfect. Did you make it to your doctor's appointment last week?\nPatient: Yes, she said my lungs sound clear.\nAgent: That's great news. You're all set. We'll follow up about the chest X-ray in about six weeks.",
         },
     },
 ]
@@ -158,12 +165,16 @@ async def reseed():
     async with AsyncSessionLocal() as db:
         for entry in PATIENTS:
             p_data = entry["patient"]
-            ep_data = entry["episode"]
+            ep_data = entry.get("episode")
 
             # Patient
             patient = Patient(**p_data)
             db.add(patient)
             await db.flush()
+
+            if not ep_data:
+                print(f"  + {p_data['name']} (no episode — ready to discharge)")
+                continue
 
             # Compute deadlines
             discharge = ep_data["discharge_date"]
@@ -193,7 +204,7 @@ async def reseed():
                 med_rec_completed=ep_data.get("med_rec_completed", False),
             )
             db.add(episode)
-            await db.flush()  # ensure episode id is in DB before call FK references it
+            await db.flush()
 
             # Call (if defined)
             call_data = entry.get("call")
@@ -232,12 +243,14 @@ async def reseed():
 
         await db.commit()
 
-    print("\n✓ Seed complete — 5 patients inserted")
-    print("  Margaret Chen    — AWAITING_CALL (Heart Failure, HIGH)")
-    print("  Robert Williams  — ESCALATED (COPD, HIGH)")
-    print("  Dorothy Martinez — CALL_COMPLETE (Hip Replacement, MODERATE)")
-    print("  James Thompson   — VISIT_SCHEDULED (AMI, HIGH)")
-    print("  Patricia Johnson — READY_TO_BILL (Diabetes, MODERATE)")
+    print("\n✓ Seed complete — 7 patients inserted")
+    print("  Eleanor Vasquez   — no episode (ready to discharge, CHF)")
+    print("  Frank Delgado     — no episode (ready to discharge, COPD)")
+    print("  Beverly Kim       — no episode (ready to discharge, Diabetes/foot wound)")
+    print("  Thomas Brennan    — AWAITING_CALL (Sepsis, HIGH)")
+    print("  Gloria Washington — ESCALATED (STEMI, HIGH)")
+    print("  Raymond Foster    — CALL_COMPLETE (Knee Replacement, MODERATE)")
+    print("  Sandra Okafor     — READY_TO_BILL (Pneumonia, MODERATE)")
 
 
 if __name__ == "__main__":

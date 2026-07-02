@@ -101,6 +101,10 @@ async def trigger_call(
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
 
+    # Skip if already in progress (e.g. a web call was started manually before the auto-trigger fired)
+    if episode.state == EpisodeState.CALL_IN_PROGRESS:
+        raise HTTPException(status_code=409, detail="A call is already in progress for this episode")
+
     pt_result = await db.execute(select(Patient).where(Patient.id == episode.patient_id))
     patient = pt_result.scalar_one_or_none()
 

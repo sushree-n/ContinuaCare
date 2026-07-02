@@ -24,6 +24,10 @@ export const API_URL =
 export const USE_MOCK =
   (import.meta.env.VITE_USE_MOCK as string | undefined) !== 'false'
 
+// Phone calls only enabled when explicitly set — keeps prod safe by default.
+export const PHONE_CALLS_ENABLED =
+  (import.meta.env.VITE_PHONE_CALLS_ENABLED as string | undefined) === 'true'
+
 const api = axios.create({ baseURL: API_URL })
 export default api
 
@@ -56,6 +60,10 @@ export const setEpisodeState = (episodeId: string, state: string) =>
   api.patch(`/episodes/${episodeId}/state`, { state })
 export const fastForward = (episodeId: string) =>
   api.post(`/demo/fast-forward/${episodeId}`)
+export const startWebCall = (episodeId: string) =>
+  api.post<{ token: string; room: string; ws_url: string; call_id: string }>(
+    `/demo/web-call/${episodeId}`
+  )
 
 // ----------------------------------------------------------------------------
 //  Adapter, fold a backend Patient + Episode into the console's view model.

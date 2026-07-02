@@ -16,6 +16,7 @@ from services.triage import run_triage
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 CALL_DELAY_SECONDS = int(os.environ.get("DEMO_CALL_DELAY_SECONDS", 15))
+PHONE_CALLS_ENABLED = os.getenv("PHONE_CALLS_ENABLED", "false").lower() == "true"
 
 router = APIRouter(prefix="/episodes", tags=["episodes"])
 
@@ -100,7 +101,10 @@ async def _run_triage_and_update(episode_id: str, patient: Patient, discharge_no
 
         await db.commit()
 
-    # triage done — wait then auto-trigger the call
+    # triage done — wait then auto-trigger the call (only if phone calls are enabled)
+    if not PHONE_CALLS_ENABLED:
+        print(f"[auto-trigger] skipped for episode {episode_id} — PHONE_CALLS_ENABLED is false")
+        return
     await asyncio.sleep(CALL_DELAY_SECONDS)
     try:
         async with httpx.AsyncClient(timeout=10) as client:
