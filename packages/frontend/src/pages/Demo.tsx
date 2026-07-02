@@ -27,6 +27,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 export default function Demo() {
   const {
     patients,
+    hydrated,
     selectedId,
     drawerOpen,
     panelWidth,
@@ -159,6 +160,14 @@ export default function Demo() {
     boxShadow: filter === kind ? '0 1px 6px rgba(26,26,30,0.07)' : 'none',
     transition: 'background .15s, border-color .15s',
   })
+
+  if (!hydrated) {
+    return (
+      <div style={css('height:100vh;width:100%;display:flex;align-items:center;justify-content:center;background:#0f1b2d')}>
+        <div style={css('color:#94a3b8;font-size:14px;font-family:Inter,sans-serif')}>Loading patient roster…</div>
+      </div>
+    )
+  }
 
   return (
     <div style={css('height:100vh;width:100%;display:flex;flex-direction:column;overflow:hidden')}>

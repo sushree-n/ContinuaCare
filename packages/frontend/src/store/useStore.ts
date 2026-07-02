@@ -40,7 +40,7 @@ interface ContinuaCareState {
 }
 
 export const useStore = create<ContinuaCareState>((set, get) => ({
-  patients: seedPatients(),
+  patients: USE_MOCK ? seedPatients() : [],
   jobIndex: 0,
   hydrated: false,
   openEscalationIds: new Set(),
