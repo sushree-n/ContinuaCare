@@ -97,13 +97,14 @@ async def fetch_patient(patient_id: str) -> dict:
     """Fetch the patient + active episode data the agent needs for this call."""
     import httpx
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        # 60s timeout to survive Render free-tier cold start (can be 30-50s)
+        async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.get(f"{BACKEND_URL}/patients/{patient_id}")
             resp.raise_for_status()
             patient = resp.json()
 
         # also pull the active episode for discharge_date + complexity
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=60) as client:
             ep_resp = await client.get(f"{BACKEND_URL}/patients/{patient_id}/episode")
             if ep_resp.status_code == 200:
                 episode = ep_resp.json()
@@ -153,7 +154,7 @@ async def post_call_complete(session: AgentSession, call_context: dict) -> None:
 
     logger.info("post_call_complete — call=%s chars=%d", call_id, len(transcript))
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=60) as client:
             await client.post(f"{BACKEND_URL}/calls/{call_id}/complete", json={
                 "transcript": transcript,
                 "flags": [],
